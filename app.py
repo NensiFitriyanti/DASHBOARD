@@ -5,6 +5,11 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from googleapiclient.discovery import build
 import os, re
 from dotenv import load_dotenv
+from io import BytesIO
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
 
 # ========================
 # 1. Load ENV / Secrets
@@ -100,6 +105,37 @@ def load_initial_data():
         return pd.concat(all_data, ignore_index=True)
     return pd.DataFrame(columns=["Video","Komentar","Sentimen","Skor","Tanggal"])
 
+# --- Export ke Excel ---
+def to_excel(df):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Sentimen")
+    processed_data = output.getvalue()
+    return processed_data
+
+# --- Export ke PDF ---
+def to_pdf(df):
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+
+    # bikin tabel dari dataframe
+    data = [df.columns.tolist()] + df.values.tolist()
+    table = Table(data)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,0), colors.grey),
+        ("TEXTCOLOR", (0,0), (-1,0), colors.whitesmoke),
+        ("ALIGN", (0,0), (-1,-1), "CENTER"),
+        ("GRID", (0,0), (-1,-1), 0.25, colors.black),
+        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+        ("FONTSIZE", (0,0), (-1,0), 10)
+    ]))
+
+    doc.build([Paragraph("Laporan Sentimen VoxMeter", styles["Title"]), table])
+    pdf = buffer.getvalue()
+    buffer.close()
+    return pdf
+
 # ========================
 # 4. State Awal
 # ========================
@@ -136,7 +172,13 @@ else:
 
     # Sidebar custom
     st.sidebar.image("logo_voxmeter.png", width=120)
-    st.sidebar.markdown("<h3 style='text-align:center;'>Administrator</h3>", unsafe_allow_html=True)
+
+    st.sidebar.markdown("""
+        <div style="display: flex; align-items: center; justify-content: center; margin-top:10px; margin-bottom:20px;">
+            <img src="adminpicture.png" width="40" style="border-radius:50%; margin-right:10px;">
+            <span style="font-size:18px; font-weight:bold;">Administrator</span>
+        </div>
+    """, unsafe_allow_html=True)
 
     menu = st.sidebar.radio("Menu", ["Dashboard", "Kelola Sentimen", "Dataset", "Logout"])
     df = st.session_state.final_df
@@ -176,14 +218,39 @@ else:
     # -------------------- Kelola Sentimen --------------------
     elif menu == "Kelola Sentimen":
         st.title("🗂️ Kelola Sentimen")
+
         search = st.text_input("🔍 Cari komentar...")
         df_filtered = df[df["Komentar"].str.contains(search, case=False)] if search else df
+
         st.dataframe(df_filtered, use_container_width=True)
 
         col1, col2, col3 = st.columns(3)
-        col1.download_button("📄 Export CSV", df.to_csv(index=False), "sentimen.csv", "text/csv")
-        col2.download_button("📊 Export Excel", df.to_excel("sentimen.xlsx", index=False), "sentimen.xlsx")
-        col3.download_button("📕 Export PDF", df.to_csv(index=False), "sentimen.pdf")
+
+        # Export CSV (pakai data yang sedang ditampilkan)
+        col1.download_button(
+            "📄 Export CSV",
+            df_filtered.to_csv(index=False).encode("utf-8"),
+            "sentimen.csv",
+            "text/csv"
+        )
+
+        # Export Excel
+        excel_data = to_excel(df_filtered)
+        col2.download_button(
+            "📊 Export Excel",
+            data=excel_data,
+            file_name="sentimen.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+        # Export PDF
+        pdf_data = to_pdf(df_filtered)
+        col3.download_button(
+            "📕 Export PDF",
+            data=pdf_data,
+            file_name="sentimen.pdf",
+            mime="application/pdf"
+        )
 
     # -------------------- Dataset --------------------
     elif menu == "Dataset":

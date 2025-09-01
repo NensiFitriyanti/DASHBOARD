@@ -6,3 +6,6 @@ google-api-python-client
 python-dotenv
 openpyxl
 reportlab
+BytesIO
+colors
+letter
