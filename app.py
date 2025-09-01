@@ -1,145 +1,80 @@
-
+import os
 import re
-import base64
+import time
+import json
+import math
+import random
+import string
 from datetime import datetime
-from io import BytesIO
 
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import pandas as pd
-import numpy as np
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
-import matplotlib.pyplot as plt
-from wordcloud import WordCloud
+from googleapiclient.discovery import build
 
-# YouTube API
-try:
-    from googleapiclient.discovery import build
-except:
-    build = None
+# ================= LOAD API KEY =================
+if "YOUTUBE_API_KEY" not in st.secrets:
+    st.error("⚠️ API Key belum diatur di Streamlit Cloud → Secrets")
+    st.stop()
 
-# --------------------------
-# CONFIG DASAR
-# --------------------------
-st.set_page_config(page_title="DASHBOARD ANALYSIS", layout="wide")
-st_autorefresh(interval=60 * 60 * 1000, key="refresh_each_60m")  # refresh otomatis
+API_KEY = st.secrets["YOUTUBE_API_KEY"]
+youtube = build('youtube', 'v3', developerKey=API_KEY)
 
-# --------------------------
-# THEME MODE
-# --------------------------
-with st.sidebar:
-    theme_mode = st.radio("Pilih Tema:", ["🌙 Gelap", "☀️ Terang"], index=0)
+# ================= SCRAPER KOMENTAR =================
+def get_comments(video_id, max_results=100):
+    comments, authors, times, ids, video_ids, sentiments = [], [], [], [], [], []
 
-is_dark = theme_mode.startswith("🌙")
-BG = "#0f1226" if is_dark else "#eef1f8"
-FG = "#f5f7ff" if is_dark else "#0e1329"
-ACCENT = "#18a0fb"
+    try:
+        response = youtube.commentThreads().list(
+            part="snippet",
+            videoId=video_id,
+            maxResults=max_results,
+            textFormat="plainText"
+        ).execute()
 
-st.markdown(
-    f"""
-    <style>
-      body, [data-testid="stAppViewContainer"] {{
-        background: {BG} !important;
-        color: {FG} !important;
-      }}
-      [data-testid="stHeader"] {{ background: transparent; }}
-      .title-center {{
-        text-align:center; font-size:30px; font-weight:800;
-        background: linear-gradient(135deg,#cfd3da,#7e8697,#cfd3da);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      }}
-      .neo-card {{
-        background: linear-gradient(145deg,#cfd3da,#9ea5b3);
-        border-radius: 18px; padding: 18px;
-        box-shadow: 8px 8px 20px rgba(0,0,0,.35), -6px -6px 18px rgba(255,255,255,.25);
-        transition: transform .25s ease;
-      }}
-      .neo-card.dark {{
-        background: linear-gradient(145deg,#1a1f3a,#0b0e1e);
-      }}
-      .neo-card:hover {{ transform: translateY(-3px); }}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+        for item in response.get("items", []):
+            snippet = item["snippet"]["topLevelComment"]["snippet"]
+            comment_id = item["id"]
+            text = snippet["textDisplay"]
+            author = snippet["authorDisplayName"]
+            time_published = snippet["publishedAt"]
 
-card_class = "neo-card dark" if is_dark else "neo-card"
+            comments.append(text)
+            authors.append(author)
+            times.append(time_published)
+            ids.append(comment_id)
+            video_ids.append(video_id)
 
-# --------------------------
-# YOUTUBE DATA FETCH
-# --------------------------
-VIDEO_URLS = [
-    "https://youtu.be/Ugfjq0rDz8g?si=vWNO6nEAj9XB2LOB",
-    "https://youtu.be/Lr1OHmBpwjw?si=9Mvu8o69V8Zt40yn",
-    "https://youtu.be/5BFIAHBBdao?si=LPNB-8ZtJIk3xZVu",
-    "https://youtu.be/UzAgIMvb3c0?si=fH01vTOsKuUb8IoF",
-    "https://youtu.be/6tAZ-3FSYr0?si=rKhlEpS3oO7BOOtR",
-    "https://youtu.be/M-Qsvh18JNM?si=JJZ2-RKikuexaNw5",
-    "https://youtu.be/vSbe5C7BTuM?si=2MPkRB08C3P9Vilt",
-    "https://youtu.be/Y7hcBMJDNwk?si=rI0-dsunElb5XMVl",
-    "https://youtu.be/iySgErYzRR0?si=05mihs5jDRDXYgSZ",
-    "https://youtu.be/gwEt2_yxTmc?si=rfBwVGhePy35YA5D",
-    "https://youtu.be/9RCbgFi1idc?si=x7ILIEMAow5geJWS",
-    "https://youtu.be/ZgkVHrihbXM?si=k8OittX6RL_gcgrd",
-    "https://youtu.be/xvHiRY7skIk?si=nzAUYB71fQpLD2lv",
-]
-VIDEO_IDS = [re.search(r"v=([\\w-]{11})", url) or re.search(r"youtu\\.be/([\\w-]{11})", url) for url in VIDEO_URLS]
-VIDEO_IDS = [m.group(1) for m in VIDEO_IDS if m]
+            # sentimen placeholder
+            sentiments.append(random.choice(["positive", "negative", "neutral"]))
 
-# Fallback kalau API mati
-def get_comments(video_ids):
-    if build is None or "YOUTUBE_API_KEY" not in st.secrets:
-        # Dummy
-        rng = np.random.default_rng(42)
-        data = []
-        for v in video_ids:
-            for i in range(rng.integers(20, 50)):
-                s = np.random.choice(["positive", "negative", "neutral"])
-                data.append(
-                    {
-                        "video_id": v,
-                        "comment_id": f"c{i}{v}",
-                        "author": f"user{rng.integers(1000)}",
-                        "text": "Komentar contoh...",
-                        "sentiment": s,
-                        "views": int(rng.integers(5000, 20000)),
-                        "time": datetime.now(),
-                    }
-                )
-        return pd.DataFrame(data)
-    else:
-        youtube = build("youtube", "v3", developerKey=st.secrets["YOUTUBE_API_KEY"])
-        rows = []
-        for vid in video_ids:
-            req = youtube.commentThreads().list(part="snippet", videoId=vid, maxResults=100, order="time")
-            res = req.execute()
-            for item in res["items"]:
-                sn = item["snippet"]["topLevelComment"]["snippet"]
-                rows.append(
-                    {
-                        "video_id": vid,
-                        "comment_id": item["id"],
-                        "author": sn["authorDisplayName"],
-                        "text": sn["textDisplay"],
-                        "sentiment": "neutral",  # nanti scoring NLP
-                        "views": np.random.randint(5000, 20000),
-                        "time": pd.to_datetime(sn["publishedAt"]),
-                    }
-                )
-        return pd.DataFrame(rows)
+    except Exception as e:
+        st.error(f"Gagal mengambil komentar: {e}")
 
-df = get_comments(VIDEO_IDS)
+    return pd.DataFrame({
+        "comment_id": ids,
+        "video_id": video_ids,
+        "author": authors,
+        "time": times,
+        "text": comments,
+        "sentiment": sentiments
+    })
 
-# --------------------------
-# MENU
-# --------------------------
-menu = st.sidebar.radio(
-    "Menu",
-    ["1. Dashboard", "2. Postingan", "3. Table Komentar", "4. Analisis", "5. Insight & Rekomendasi"],
-)
+# ================= LOAD DATA =================
+VIDEO_ID = "1951305320896274764"  # ganti sesuai kebutuhan
+df = get_comments(VIDEO_ID, max_results=200)
 
-st.markdown('<div class="title-center">DASHBOARD ANALYSIS</div>', unsafe_allow_html=True)
+# ================= SIDEBAR =================
+menu = st.sidebar.radio("📌 Pilih Menu:", [
+    "1. Dashboard",
+    "2. Postingan",
+    "3. Analisis",
+    "4. Wordcloud & Pie"
+])
 
 # ==============================
 # MENU 1: DASHBOARD
@@ -147,47 +82,37 @@ st.markdown('<div class="title-center">DASHBOARD ANALYSIS</div>', unsafe_allow_h
 if menu.startswith("1."):
     st.title("📊 Dashboard Utama")
 
-    # Buat box 4 kolom
     c1, c2, c3, c4 = st.columns(4)
 
-    # Total komentar
     total_komentar = len(df) if not df.empty else 0
     c1.metric("Total Komentar", total_komentar)
 
-    # Total user (cek kolom author/authorDisplayName)
     if "author" in df.columns:
         total_user = df["author"].nunique()
-    elif "authorDisplayName" in df.columns:
-        total_user = df["authorDisplayName"].nunique()
     else:
         total_user = 0
     c2.metric("Total User", total_user)
 
-    # Update terakhir (cek kolom publishedAt)
-    if "publishedAt" in df.columns and not df.empty:
-        update_terakhir = df["publishedAt"].max()
+    if "time" in df.columns and not df.empty:
+        update_terakhir = df["time"].max()
     else:
         update_terakhir = "-"
     c3.metric("Update Terakhir", str(update_terakhir))
 
-    # Total postingan
-    total_postingan = df["video_id"].nunique() if "video_id" in df.columns else 0
+    if "video_id" in df.columns:
+        total_postingan = df["video_id"].nunique()
+    else:
+        total_postingan = 0
     c4.metric("Total Postingan", total_postingan)
 
     st.markdown("---")
 
-    # Spidometer (gauge chart sentimen dominan)
     if "sentiment" in df.columns and not df.empty:
         sentiment_counts = df["sentiment"].value_counts()
         total = sentiment_counts.sum()
-        if total > 0:
-            persen_pos = (sentiment_counts.get("positive", 0) / total) * 100
-            persen_neg = (sentiment_counts.get("negative", 0) / total) * 100
-            persen_net = (sentiment_counts.get("neutral", 0) / total) * 100
-        else:
-            persen_pos = persen_neg = persen_net = 0
+        persen_pos = (sentiment_counts.get("positive", 0) / total) * 100 if total > 0 else 0
     else:
-        persen_pos = persen_neg = persen_net = 0
+        persen_pos = 0
 
     gauge_fig = go.Figure(go.Indicator(
         mode="gauge+number",
@@ -197,103 +122,73 @@ if menu.startswith("1."):
     ))
     st.plotly_chart(gauge_fig, use_container_width=True)
 
-    # Donut Chart Sentimen
     if "sentiment" in df.columns and not df.empty:
-        donut_fig = px.pie(
-            df, names="sentiment", hole=0.5,
-            title="Distribusi Sentimen"
-        )
+        donut_fig = px.pie(df, names="sentiment", hole=0.5, title="Distribusi Sentimen")
         st.plotly_chart(donut_fig, use_container_width=True)
 
-    # Tabel sentimen
     if "sentiment" in df.columns and not df.empty:
         st.subheader("Tabel Sentimen")
-        st.dataframe(df[["comment", "sentiment"]])
+        st.dataframe(df[["text", "sentiment"]])
 
-    # Grafik jumlah komentar per postingan
     if "video_id" in df.columns and not df.empty:
-        komentar_per_video = df.groupby("video_id")["comment"].count().reset_index()
-        komentar_per_video = komentar_per_video.rename(columns={"comment": "jumlah_komentar"})
+        komentar_per_video = df.groupby("video_id")["comment_id"].count().reset_index()
+        komentar_per_video = komentar_per_video.rename(columns={"comment_id": "jumlah_komentar"})
         bar_fig = px.bar(
             komentar_per_video, x="video_id", y="jumlah_komentar",
             title="Jumlah Komentar per Video"
         )
         st.plotly_chart(bar_fig, use_container_width=True)
 
-# --------------------------
-# 2) POSTINGAN
-# --------------------------
+# ==============================
+# MENU 2: POSTINGAN
+# ==============================
 elif menu.startswith("2."):
-    st.subheader("Komentar per Video")
-    agg = df.groupby("video_id").size().reset_index(name="Jumlah Komentar")
-    for _, row in agg.iterrows():
-        st.markdown(f'<div class="{card_class}">Video {row.video_id}: {row["Jumlah Komentar"]} komentar</div>', unsafe_allow_html=True)
+    st.title("📺 Daftar Postingan")
 
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown(f'<div class="{card_class}">Total Komentar: {len(df)}</div>', unsafe_allow_html=True)
-    with c2:
-        st.markdown(f'<div class="{card_class}">Total User: {df["author"].nunique()}</div>', unsafe_allow_html=True)
+    if not df.empty:
+        for vid, group in df.groupby("video_id"):
+            with st.container():
+                st.markdown(f"### Video ID: `{vid}`")
+                st.metric("Jumlah Komentar", len(group))
+                st.dataframe(group[["author", "time", "text", "sentiment"]])
+                st.markdown("---")
+    else:
+        st.info("Belum ada postingan / komentar yang terdeteksi.")
 
-# --------------------------
-# 3) TABLE KOMENTAR
-# --------------------------
+# ==============================
+# MENU 3: ANALISIS
+# ==============================
 elif menu.startswith("3."):
-    st.subheader("Tabel Semua Komentar")
-    st.dataframe(df[["video_id", "author", "text", "sentiment", "time"]])
+    st.title("📈 Analisis Sentimen")
 
-    st.subheader("Komentar per Sentimen")
-    for s in ["positive", "negative", "neutral"]:
-        st.markdown(f"**{s.title()}**")
-        st.dataframe(df[df["sentiment"] == s][["video_id", "author", "text"]])
+    if not df.empty:
+        sentiment_counts = df["sentiment"].value_counts()
+        st.write("### Distribusi Sentimen")
+        st.bar_chart(sentiment_counts)
 
-# --------------------------
-# 4) ANALISIS
-# --------------------------
+        st.write("### Detail Komentar per Sentimen")
+        for s in ["positive", "neutral", "negative"]:
+            st.subheader(s.capitalize())
+            st.dataframe(df[df["sentiment"] == s][["author", "text", "time"]])
+    else:
+        st.warning("Data komentar kosong, tidak bisa analisis.")
+
+# ==============================
+# MENU 4: WORDCLOUD & PIE
+# ==============================
 elif menu.startswith("4."):
-    st.subheader("Analisis")
+    st.title("☁️ Wordcloud & Pie Chart")
 
-    # Diagram garis
-    st.write("📈 Peningkatan jumlah komentar dan views per postingan")
-    agg = df.groupby("video_id").agg({"comment_id": "count", "views": "max"}).reset_index()
-    fig4 = go.Figure()
-    fig4.add_trace(go.Scatter(x=agg["video_id"], y=agg["comment_id"], mode="lines+markers", name="Komentar"))
-    fig4.add_trace(go.Scatter(x=agg["video_id"], y=agg["views"], mode="lines+markers", name="Views"))
-    st.plotly_chart(fig4, use_container_width=True)
+    if not df.empty:
+        text_all = " ".join(df["text"].astype(str))
+        wordcloud = WordCloud(width=800, height=400, background_color="white").generate(text_all)
 
-    # Diagram batang
-    st.write("📊 Hasil Sentimen")
-    fig5 = px.bar(df["sentiment"].value_counts().reset_index(), x="index", y="sentiment", labels={"index": "Sentimen", "sentiment": "Jumlah"})
-    st.plotly_chart(fig5, use_container_width=True)
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.imshow(wordcloud, interpolation='bilinear')
+        ax.axis("off")
+        st.pyplot(fig)
 
-    # Wordcloud
-    st.write("☁️ WordCloud Komentar")
-    text = " ".join(df["text"].astype(str).tolist())
-    wc = WordCloud(width=800, height=400, background_color="black" if is_dark else "white").generate(text)
-    fig6, ax = plt.subplots()
-    ax.imshow(wc, interpolation="bilinear")
-    ax.axis("off")
-    st.pyplot(fig6)
-
-# --------------------------
-# 5) INSIGHT & REKOMENDASI
-# --------------------------
-elif menu.startswith("5."):
-    st.subheader("💡 Insight & Rekomendasi untuk SAMSAT")
-
-    st.markdown(f"""
-    <div class="{card_class}">
-    <h4>Insight:</h4>
-    <ul>
-        <li>Komentar positif dominan menunjukkan masyarakat puas dengan pelayanan.</li>
-        <li>Komentar negatif terutama terkait antrian panjang & sistem error.</li>
-        <li>Postingan dengan jumlah komentar tinggi cenderung memiliki views lebih tinggi juga.</li>
-    </ul>
-    <h4>Rekomendasi:</h4>
-    <ul>
-        <li>Percepat pelayanan untuk mengurangi keluhan antrian.</li>
-        <li>Tingkatkan stabilitas sistem untuk mengurangi error.</li>
-        <li>Terus tingkatkan komunikasi di media sosial untuk membangun kepercayaan publik.</li>
-    </ul>
-    </div>
-    """, unsafe_allow_html=True)
+        pie_fig = px.pie(df, names="sentiment", title="Persentase Sentimen")
+        st.plotly_chart(pie_fig, use_container_width=True)
+    else:
+        st.info("Belum ada data untuk dibuat Wordcloud atau Pie Chart.")
