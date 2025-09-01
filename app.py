@@ -1,61 +1,43 @@
-# ==============================
-# DASHBOARD ANALYSIS - STREAMLIT
-# ==============================
+import os
+import re
+import time
+import json
+import math
+import random
+import string
+from datetime import datetime
 
 import streamlit as st
+from streamlit_autorefresh import st_autorefresh
 import pandas as pd
-import plotly.express as px
-import matplotlib.pyplot as plt
 from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+from matplotlib import cm
+from matplotlib.figure import Figure
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from googleapiclient.discovery import build
-from streamlit_autorefresh import st_autorefresh
-import datetime
 
-# ==============================
-# KONFIGURASI
-# ==============================
-st.set_page_config(page_title="DASHBOARD ANALYSIS", layout="wide")
+# =====================
+# ====== CONFIG ========
+# =====================
+st.set_page_config(
+    page_title="DASBOARD SENTIMENT ANLYSIS",
+    page_icon="📊",
+    layout="wide"
+)
 
-# Theme Switcher (Gelap / Terang)
-theme_mode = st.sidebar.radio("🌗 Pilih Tema:", ["Light", "Dark"])
-if theme_mode == "Dark":
-    st.markdown(
-        """
-        <style>
-        body {
-            background-color: #0e1117;
-            color: white;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+# Auto-refresh setiap 60 menit (3600 detik => 3.6e6 ms)
+st_autorefresh(interval=60 * 60 * 1000, key="page_autorefresh")
 
-# ==============================
-# MENU UTAMA
-# ==============================
-menu = st.sidebar.radio("📌 Menu:", [
-    "Dashboard",
-    "Postingan",
-    "Table Komentar",
-    "Analisis",
-    "Insight & Rekomendasi"
-])
+# ====== Secrets / ENV ======
+YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", os.getenv("YOUTUBE_API_KEY", ""))
+if not YOUTUBE_API_KEY:
+    st.warning("YOUTUBE_API_KEY belum diset.")
 
-# ==============================
-# YOUTUBE API SETUP
-# ==============================
-if "YOUTUBE_API_KEY" not in st.secrets:
-    st.error("⚠️ API Key belum diatur di Streamlit Cloud → Secrets")
-    st.stop()
-
-API_KEY = st.secrets["YOUTUBE_API_KEY"]
-youtube = build('youtube', 'v3', developerKey=API_KEY)
-analyzer = SentimentIntensityAnalyzer()
-
-# Daftar Video
-video_urls = [
+# ====== Link Video ======
+VIDEO_URLS = [
     "https://youtu.be/Ugfjq0rDz8g?si=vWNO6nEAj9XB2LOB",
     "https://youtu.be/Lr1OHmBpwjw?si=9Mvu8o69V8Zt40yn",
     "https://youtu.be/5BFIAHBBdao?si=LPNB-8ZtJIk3xZVu",
@@ -71,115 +53,331 @@ video_urls = [
     "https://youtu.be/xvHiRY7skIk?si=nzAUYB71fQpLD2lv",
 ]
 
-# ==============================
-# MENU: DASHBOARD
-# ==============================
-if menu == "Dashboard":
-    st.title("📊 DASHBOARD ANALYSIS")
+# =====================
+# ====== STYLES =======
+# =====================
+# Dark/Light custom theme via CSS variables
+if "theme" not in st.session_state:
+    st.session_state.theme = "dark"
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total Komentar", "12,450", "+3.5%")
-    with col2:
-        st.metric("Total User", "1,245", "+1.2%")
-    with col3:
-        st.metric("Jumlah Video", str(len(video_urls)))
+is_dark = st.sidebar.toggle("Mode Gelap/Terang", value=(st.session_state.theme == "dark"))
+st.session_state.theme = "dark" if is_dark else "light"
 
-    col4, col5 = st.columns(2)
-    with col4:
-        st.subheader("Sales Pipeline (contoh tampilan)")
-        fig = px.funnel(x=[20.5, 28.2, 20.5, 17.9, 12.8],
-                        y=["Stage 1", "Stage 2", "Stage 3", "Stage 4", "Stage 5"])
-        st.plotly_chart(fig, use_container_width=True)
-    with col5:
-        st.subheader("Leads by Source (contoh)")
-        fig = px.pie(values=[31.1, 24.9, 24.3, 7.3, 12.4],
-                     names=["Web", "Trade show", "Referral", "Ads", "Email"])
-        st.plotly_chart(fig, use_container_width=True)
+PRIMARY_BG = "#0f172a" if is_dark else "#f8fafc"
+PRIMARY_FG = "#e2e8f0" if is_dark else "#0f172a"
+CARD_BG = "#111827" if is_dark else "#ffffff"
+ACCENT = "#22d3ee" if is_dark else "#0ea5e9"
+SHADOW = "rgba(0, 0, 0, 0.45)" if is_dark else "rgba(0, 0, 0, 0.12)"
 
-# ==============================
-# MENU: POSTINGAN
-# ==============================
-elif menu == "Postingan":
-    st.title("📺 Postingan")
-    st.write("Jumlah komentar per video")
+st.markdown(
+    f"""
+    <style>
+      :root {{
+        --bg: {PRIMARY_BG};
+        --fg: {PRIMARY_FG};
+        --card: {CARD_BG};
+        --accent: {ACCENT};
+        --shadow: {SHADOW};
+      }}
+      .main, .stApp {{ background: var(--bg); color: var(--fg); }}
 
-    cols = st.columns(3)
-    for i, url in enumerate(video_urls, start=1):
-        with cols[(i-1) % 3]:
-            st.markdown(f"""
-            <div style="padding:15px; border-radius:15px; background:linear-gradient(145deg,#e6e6e6,#ffffff); box-shadow: 5px 5px 15px #bebebe,-5px -5px 15px #ffffff;">
-            🎥 <b>Video {i}</b><br>
-            Komentar: {100+i*10}
-            </div>
-            """, unsafe_allow_html=True)
+      /* 3D NAV BUTTONS */
+      .nav3d .element-container button {{
+        background: linear-gradient(145deg, rgba(255,255,255,0.04), rgba(0,0,0,0.25));
+        color: var(--fg);
+        border: 0;
+        padding: 12px 18px;
+        border-radius: 16px;
+        box-shadow: 6px 6px 14px var(--shadow), -6px -6px 14px rgba(255,255,255,0.05);
+        transition: transform .08s ease, box-shadow .2s ease;
+      }}
+      .nav3d .element-container button:hover {{ transform: translateY(-1px); }}
+      .nav3d .element-container button:active {{ transform: translateY(2px); box-shadow: inset 4px 4px 10px var(--shadow); }}
 
-    colA, colB = st.columns(2)
-    with colA:
-        st.success("📊 Total Komentar: 12,450")
-    with colB:
-        st.info("👥 Total User: 1,245")
+      /* 3D CARDS */
+      .card3d {{
+        background: var(--card);
+        border-radius: 22px;
+        padding: 18px 18px 14px 18px;
+        box-shadow: 14px 14px 28px var(--shadow), -10px -10px 24px rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.06);
+      }}
 
-# ==============================
-# MENU: TABLE KOMENTAR
-# ==============================
-elif menu == "Table Komentar":
-    st.title("💬 Tabel Komentar")
-    df = pd.DataFrame({
-        "User": ["A","B","C","D"],
-        "Komentar": ["Bagus sekali","Kurang puas","Netral","Mantap"],
-        "Sentimen": ["Positif","Negatif","Netral","Positif"]
-    })
-    st.dataframe(df, use_container_width=True)
+      .stat3d {{
+        background: var(--card);
+        border-radius: 20px;
+        padding: 14px 16px;
+        text-align: center;
+        border: 1px solid rgba(255,255,255,0.06);
+        box-shadow: 10px 10px 20px var(--shadow), -6px -6px 18px rgba(255,255,255,0.05);
+      }}
+      .stat3d h3 {{ margin: 0; font-size: 14px; opacity: .8; }}
+      .stat3d p {{ margin: 4px 0 0; font-size: 22px; font-weight: 700; color: var(--accent); }}
 
-    st.subheader("📌 Komentar per Sentimen")
-    for senti in ["Positif", "Negatif", "Netral"]:
-        st.markdown(f"### {senti}")
-        st.dataframe(df[df["Sentimen"]==senti], use_container_width=True)
+      .bigstat3d {{
+        background: var(--card);
+        border-radius: 24px;
+        padding: 20px;
+        border: 1px solid rgba(255,255,255,0.06);
+        box-shadow: 14px 14px 30px var(--shadow), -10px -10px 24px rgba(255,255,255,0.05);
+      }}
+      .bigstat3d h2 {{ margin: 0; font-size: 16px; opacity: .85; }}
+      .bigstat3d p {{ margin: 6px 0 0; font-size: 28px; font-weight: 800; color: var(--accent); }}
 
-# ==============================
-# MENU: ANALISIS
-# ==============================
+      hr.sep {{ border: none; height: 1px; background: rgba(255,255,255,.08); margin: 8px 0 16px; }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# =====================
+# ====== UTILS ========
+# =====================
+VIDEO_ID_RE = re.compile(r"(?:v=|youtu.be/)([A-Za-z0-9_-]{11})")
+
+@st.cache_data(show_spinner=False)
+def extract_video_id(url: str) -> str:
+    m = VIDEO_ID_RE.search(url)
+    return m.group(1) if m else ""
+
+@st.cache_data(ttl=3600, show_spinner=True)
+def fetch_comments_for_video(video_id: str, max_pages: int = 20) -> pd.DataFrame:
+    """Ambil komentar top-level dari sebuah video dengan pagination."""
+    if not YOUTUBE_API_KEY:
+        return pd.DataFrame(columns=["video_id","comment_id","author","text","publishedAt"])
+
+    youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+
+    comments = []
+    page_token = None
+    pages = 0
+
+    while True:
+        req = youtube.commentThreads().list(
+            part="snippet",
+            videoId=video_id,
+            maxResults=100,
+            pageToken=page_token,
+            order="time"
+        )
+        resp = req.execute()
+
+        for item in resp.get("items", []):
+            sn = item["snippet"]["topLevelComment"]["snippet"]
+            comments.append({
+                "video_id": video_id,
+                "comment_id": item["snippet"]["topLevelComment"]["id"],
+                "author": sn.get("authorDisplayName", ""),
+                "text": sn.get("textDisplay", ""),
+                "publishedAt": sn.get("publishedAt", "")
+            })
+
+        page_token = resp.get("nextPageToken")
+        pages += 1
+        if (not page_token) or (pages >= max_pages):
+            break
+
+    df = pd.DataFrame(comments)
+    if not df.empty:
+        df["publishedAt"] = pd.to_datetime(df["publishedAt"], errors="coerce")
+    return df
+
+@st.cache_data(ttl=3600, show_spinner=True)
+def fetch_all_comments(video_urls: list[str]) -> pd.DataFrame:
+    frames = []
+    for url in video_urls:
+        vid = extract_video_id(url)
+        if not vid:
+            continue
+        frames.append(fetch_comments_for_video(vid))
+    if frames:
+        df = pd.concat(frames, ignore_index=True)
+        return df.drop_duplicates(subset=["comment_id"]).reset_index(drop=True)
+    return pd.DataFrame(columns=["video_id","comment_id","author","text","publishedAt"])
+
+# Text cleanup ringan (emoji/URL/tag html)
+EMOJI_RE = re.compile(r"[\U00010000-\U0010ffff]", flags=re.UNICODE)
+URL_RE = re.compile(r"https?://\S+|www\.\S+")
+TAG_RE = re.compile(r"<.*?>")
+
+@st.cache_data(show_spinner=False)
+def clean_text(s: str) -> str:
+    s = TAG_RE.sub(" ", s)
+    s = URL_RE.sub(" ", s)
+    s = EMOJI_RE.sub(" ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+@st.cache_resource(show_spinner=False)
+def get_analyzer():
+    return SentimentIntensityAnalyzer()
+
+@st.cache_data(ttl=3600, show_spinner=True)
+def score_sentiment(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df.assign(text_clean="", score=0.0, label="netral")
+
+    an = get_analyzer()
+    texts = df["text"].fillna("").astype(str).apply(clean_text)
+
+    scores = texts.apply(lambda t: an.polarity_scores(t)["compound"])  # -1..1
+
+    def to_label(v):
+        if v >= 0.05:
+            return "positif"
+        elif v <= -0.05:
+            return "negatif"
+        else:
+            return "netral"
+
+    labels = scores.apply(to_label)
+    out = df.copy()
+    out["text_clean"] = texts
+    out["score"] = scores
+    out["label"] = labels
+    return out
+
+# =====================
+# ====== DATA =========
+# =====================
+st.title("DASBOARD SENTIMENT ANLYSIS")
+st.caption("Komentar YouTube • Auto-refresh 60 menit • NLP VADER")
+
+with st.spinner("Mengambil komentar dari YouTube..."):
+    raw_df = fetch_all_comments(VIDEO_URLS)
+    df = score_sentiment(raw_df)
+
+# Aggregations
+by_video = (
+    df.groupby("video_id")
+      .agg(total_komentar=("comment_id","count"), unik_user=("author","nunique"))
+      .reset_index()
+)
+
+by_label = df["label"].value_counts().reindex(["positif","negatif","netral"]).fillna(0).astype(int)
+
+# =====================
+# ====== HEADER ========
+# =====================
+# Long stats bottom: total komentar & total user
+total_komen = int(df.shape[0])
+unique_user = int(df["author"].nunique())
+
+c1, c2 = st.columns(2)
+with c1:
+    st.markdown(
+        f"""
+        <div class='bigstat3d'>
+          <h2>Total Komentar</h2>
+          <p>{total_komen:,}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+with c2:
+    st.markdown(
+        f"""
+        <div class='bigstat3d'>
+          <h2>Total User</h2>
+          <p>{unique_user:,}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+st.markdown("<hr class='sep' />", unsafe_allow_html=True)
+
+# =====================
+# ====== NAV ========
+# =====================
+st.sidebar.subheader("Menu")
+menu = st.sidebar.radio(
+    "Pilih halaman:",
+    options=["All", "Sentimen", "Analisis", "WordCloud", "Insight & Rekomendasi"],
+    index=0,
+    horizontal=False,
+)
+
+# add 3D styling to sidebar buttons
+st.sidebar.markdown("<div class='nav3d'></div>", unsafe_allow_html=True)
+
+# =====================
+# ====== PAGES =========
+# =====================
+if menu == "All":
+    # Small stat boxes: total komentar per postingan (HANYA di menu All)
+    cols = st.columns(min(6, max(1, len(by_video))))
+    for i, (_, row) in enumerate(by_video.iterrows()):
+        with cols[i % len(cols)]:
+            st.markdown(
+                f"""
+                <div class='stat3d'>
+                  <h3>Video: <code>{row['video_id']}</code></h3>
+                  <p>{int(row['total_komentar']):,} komentar</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    st.markdown("<div class='card3d'>", unsafe_allow_html=True)
+
+    c1, c2 = st.columns([1,1])
+    with c1:
+        st.subheader("Grafik Sentimen (Donut)")
+        st.plotly_chart(donut_sentiment_chart(by_label), use_container_width=True)
+    with c2:
+        st.subheader("Jumlah Komentar per Video")
+        st.plotly_chart(bar_per_video(by_video), use_container_width=True)
+
+    st.markdown("<hr class='sep' />", unsafe_allow_html=True)
+
+    c3, c4 = st.columns([1,1])
+    with c3:
+        st.subheader("WordCloud")
+        if not df.empty:
+            fig_wc = build_wordcloud(df["text_clean"].tolist())
+            st.pyplot(fig_wc, use_container_width=True)
+        else:
+            st.info("Belum ada data komentar.")
+    with c4:
+        st.subheader("Insight & Rekomendasi (Samsat)")
+        st.write("**Ringkasan**", ins["ringkasan"])
+        st.write("**Top Kata**", ins["top_kata"])
+        st.write("**Rekomendasi**")
+        for r in ins["rekomendasi"]:
+            st.markdown(f"- {r}")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+elif menu == "Sentimen":
+    st.subheader("Tabel Komentar & Sentimen")
+    show_cols = ["publishedAt","author","text","score","label","video_id"]
+    st.dataframe(df[show_cols].sort_values("publishedAt", ascending=False), use_container_width=True, height=420)
+
+    st.markdown("<hr class='sep' />", unsafe_allow_html=True)
+    st.subheader("Distribusi Sentimen (3D-feel)")
+    st.plotly_chart(bar_sentiment_counts(by_label), use_container_width=True)
+
 elif menu == "Analisis":
-    st.title("📈 Analisis")
+    st.subheader("Chart 3D – Jumlah Komentar per Video")
+    if not by_video.empty:
+        fig3d = bar3d_per_video(by_video)
+        st.pyplot(fig3d, use_container_width=True)
+    else:
+        st.info("Belum ada data untuk divisualisasikan.")
 
-    st.subheader("📉 Diagram Forex (Jumlah Komentar & Tayangan per Postingan)")
-    df_line = pd.DataFrame({
-        "Postingan": range(1,14),
-        "Komentar": [120,180,140,220,260,240,300,280,310,290,330,350,370],
-        "Tayangan": [1000,1200,1150,1400,1600,1550,1700,1650,1750,1800,1900,2000,2100]
-    })
-    fig_line = px.line(df_line, x="Postingan", y=["Komentar","Tayangan"], markers=True)
-    st.plotly_chart(fig_line, use_container_width=True)
+elif menu == "WordCloud":
+    st.subheader("WordCloud")
+    if not df.empty:
+        fig_wc = build_wordcloud(df["text_clean"].tolist())
+        st.pyplot(fig_wc, use_container_width=True)
+    else:
+        st.info("Belum ada data komentar.")
 
-    st.subheader("📊 Diagram Batang Hasil Sentimen")
-    df_bar = pd.DataFrame({
-        "Sentimen":["Positif","Negatif","Netral"],
-        "Jumlah":[320,120,200]
-    })
-    fig_bar = px.bar(df_bar, x="Sentimen", y="Jumlah", color="Sentimen")
-    st.plotly_chart(fig_bar, use_container_width=True)
-
-    st.subheader("☁️ WordCloud")
-    text = "Bagus sekali Samsat cepat pelayanan buruk lambat antrian netral pelayanan baik"
-    wordcloud = WordCloud(width=800, height=400, background_color="white").generate(text)
-    plt.imshow(wordcloud, interpolation='bilinear')
-    plt.axis("off")
-    st.pyplot()
-
-# ==============================
-# MENU: INSIGHT & REKOMENDASI
-# ==============================
 elif menu == "Insight & Rekomendasi":
-    st.title("💡 Insight & Rekomendasi")
-    st.markdown("""
-    ### Insight:
-    - Mayoritas komentar bersifat positif, artinya masyarakat cukup puas.
-    - Ada peningkatan jumlah komentar pada video dengan topik pelayanan cepat.
-    - Sentimen negatif dominan terkait antrian panjang.
-
-    ### Rekomendasi untuk SAMSAT:
-    1. Tingkatkan kapasitas pelayanan di jam sibuk.
-    2. Buat sistem antrian online agar lebih efisien.
-    3. Fokus pada promosi layanan unggulan yang mendapat respon positif.
-    """)
+    st.subheader("Insight & Rekomendasi untuk Samsat (otomatis)")
+    st.write("**Ringkasan**", ins["ringkasan"])
+    st.write("**Top Kata**", ins["top_kata"])
+    st.write("**Rekomendasi**")
+    for r in ins["rekomendasi"]:
+        st.markdown(f"- {r}")
