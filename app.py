@@ -257,9 +257,122 @@ by_video = (
 by_label = df["label"].value_counts().reindex(["positif","negatif","netral"]).fillna(0).astype(int)
 
 # =====================
-# ====== HEADER ========
+# ====== NAV ========
 # =====================
-# Long stats bottom: total komentar & total user
+st.sidebar.subheader("Menu")
+menu = st.sidebar.radio(
+    "Pilih halaman:",
+    options=["All", "Sentimen", "Analisis", "WordCloud", "Insight & Rekomendasi"],
+    index=0,
+    horizontal=False,
+)
+
+# add 3D styling to sidebar buttons
+st.sidebar.markdown("<div class='nav3d'></div>", unsafe_allow_html=True)
+
+# =====================
+# ====== HELPERS UI ===
+# =====================
+def donut_sentiment_chart(series_counts: pd.Series):
+    import plotly.graph_objects as go
+    labels = series_counts.index.tolist()
+    values = series_counts.values.tolist()
+    fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.55)])
+    fig.update_traces(textposition='inside', textinfo='percent+label')
+    fig.update_layout(margin=dict(l=10,r=10,t=10,b=10), height=380, paper_bgcolor='rgba(0,0,0,0)')
+    return fig
+
+@st.cache_data(show_spinner=False)
+def build_wordcloud(texts: list[str]) -> Figure:
+    # WordCloud builder (dipanggil di menu All & WordCloud)
+    wc = WordCloud(width=1000, height=500, background_color="black" if is_dark else "white")
+    big_text = " ".join(texts) if texts else ""
+    wc_img = wc.generate(big_text) if big_text else wc.generate(" ")
+    fig = plt.figure(figsize=(9,4))
+    plt.imshow(wc_img)
+    plt.axis('off')
+    return fig
+
+def bar_sentiment_counts(series_counts: pd.Series):
+    import plotly.express as px
+    dfc = series_counts.reset_index()
+    dfc.columns = ["label","jumlah"]
+    fig = px.bar(dfc, x="label", y="jumlah")
+    fig.update_layout(margin=dict(l=10,r=10,t=10,b=10), height=360, paper_bgcolor='rgba(0,0,0,0)')
+    return fig
+
+def bar_per_video(dfv: pd.DataFrame):
+    import plotly.express as px
+    fig = px.bar(dfv, x="video_id", y="total_komentar")
+    fig.update_layout(xaxis_title="Video ID", yaxis_title="Jumlah Komentar",
+                      margin=dict(l=10,r=10,t=10,b=10), height=380,
+                      paper_bgcolor='rgba(0,0,0,0)')
+    return fig
+
+def bar3d_per_video(dfv: pd.DataFrame) -> Figure:
+    # 3D bar via matplotlib
+    fig = plt.figure(figsize=(10, 5))
+    ax = fig.add_subplot(111, projection='3d')
+
+    xs = list(range(len(dfv)))
+    ys = [0] * len(dfv)
+    zs = [0] * len(dfv)
+    dx = [0.6] * len(dfv)
+    dy = [0.6] * len(dfv)
+    dz = dfv["total_komentar"].astype(float).tolist()
+
+    ax.bar3d(xs, ys, zs, dx, dy, dz, shade=True)
+    ax.set_xticks(xs)
+    ax.set_xticklabels(dfv["video_id"].tolist(), rotation=40, ha='right', fontsize=8)
+    ax.set_yticks([])
+    ax.set_zlabel('Komentar')
+    ax.set_title('Jumlah Komentar per Video (3D)')
+    fig.tight_layout()
+    return fig
+
+@st.cache_data(show_spinner=False)
+def make_insights(df_scored: pd.DataFrame) -> dict:
+    total = len(df_scored)
+    pos = int((df_scored.label == 'positif').sum())
+    neg = int((df_scored.label == 'negatif').sum())
+    neu = int((df_scored.label == 'netral').sum())
+    pos_pct = (pos / total * 100) if total else 0
+    neg_pct = (neg / total * 100) if total else 0
+    neu_pct = (neu / total * 100) if total else 0
+
+    # Kata sering muncul
+    all_text = " ".join(df_scored.text_clean.tolist()).lower()
+    words = re.findall(r"[a-zA-ZÀ-ÿ0-9_]+", all_text)
+    freq = pd.Series(words).value_counts().head(10).to_dict() if len(words) else {}
+
+    rekomendasi = []
+    # Skenario rekomendasi sederhana untuk Samsat
+    if neg_pct >= 40:
+        rekomendasi.append("Perbanyak respons cepat pada komentar keluhan; siapkan template jawaban & prioritas antrian layanan.")
+    if pos_pct >= 50:
+        rekomendasi.append("Dorong testimoni pengguna puas (pin komentar positif, buat highlight).")
+    if neu_pct >= 40:
+        rekomendasi.append("Berikan FAQ ringkas terkait persyaratan/biaya/jam layanan agar komentar informasional tidak berulang.")
+    if not rekomendasi:
+        rekomendasi.append("Pertahankan ritme komunikasi; monitor harian & tindak lanjut dalam 24–48 jam untuk komentar negatif.")
+
+    return {
+        "ringkasan": {
+            "total": total, "positif": pos, "negatif": neg, "netral": neu,
+            "positif_%": round(pos_pct, 2), "negatif_%": round(neg_pct, 2), "netral_%": round(neu_pct, 2)
+        },
+        "top_kata": freq,
+        "rekomendasi": rekomendasi
+    }
+
+ins = make_insights(df)
+
+# =====================
+# ====== HEADER (big stats saja) =====
+# =====================
+# Small stat box per video DIPINDAH ke menu "All"
+st.markdown("<hr class='sep' />", unsafe_allow_html=True)
+
 total_komen = int(df.shape[0])
 unique_user = int(df["author"].nunique())
 
@@ -286,20 +399,6 @@ with c2:
     )
 
 st.markdown("<hr class='sep' />", unsafe_allow_html=True)
-
-# =====================
-# ====== NAV ========
-# =====================
-st.sidebar.subheader("Menu")
-menu = st.sidebar.radio(
-    "Pilih halaman:",
-    options=["All", "Sentimen", "Analisis", "WordCloud", "Insight & Rekomendasi"],
-    index=0,
-    horizontal=False,
-)
-
-# add 3D styling to sidebar buttons
-st.sidebar.markdown("<div class='nav3d'></div>", unsafe_allow_html=True)
 
 # =====================
 # ====== PAGES =========
