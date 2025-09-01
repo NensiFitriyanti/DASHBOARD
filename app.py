@@ -16,27 +16,48 @@ from datetime import datetime
 # ================= CONFIG =================
 st.set_page_config(page_title="DASHBOARD SENTIMENT ANALYSIS", layout="wide")
 
-# Tambah CSS biar ada efek 3D & dark/light toggle
-st.markdown("""
-    <style>
-    .big-title {text-align:center; font-size:32px; font-weight:bold; color:#2c3e50;}
-    .menu-box {
-        padding: 20px;
-        border-radius: 20px;
-        box-shadow: 5px 5px 15px #aaaaaa, -5px -5px 15px #ffffff;
-        text-align: center;
-        transition: transform 0.2s;
-    }
-    .menu-box:hover {
-        transform: scale(1.05);
-    }
-    .small-text {
-        font-size:14px;
-        font-weight:500;
-        color:#333333;
-    }
-    </style>
-""", unsafe_allow_html=True)
+# ================= THEME TOGGLE =================
+mode = st.sidebar.radio("🌗 Mode Tampilan", ["Terang", "Gelap"])
+
+if mode == "Gelap":
+    st.markdown(
+        """
+        <style>
+        .stApp {background-color: #0e1117; color: white;}
+        .big-title {text-align:center; font-size:32px; font-weight:bold; color:#f5f5f5;}
+        .menu-box {
+            padding: 20px;
+            border-radius: 20px;
+            background: #1e1e1e;
+            box-shadow: 4px 4px 10px #000000, -4px -4px 10px #2e2e2e;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        .menu-box:hover {transform: scale(1.05);}
+        .small-text {font-size:14px; font-weight:500; color:#cccccc;}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+else:
+    st.markdown(
+        """
+        <style>
+        .big-title {text-align:center; font-size:32px; font-weight:bold; color:#2c3e50;}
+        .menu-box {
+            padding: 20px;
+            border-radius: 20px;
+            background: white;
+            box-shadow: 5px 5px 15px #aaaaaa, -5px -5px 15px #ffffff;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        .menu-box:hover {transform: scale(1.05);}
+        .small-text {font-size:14px; font-weight:500; color:#333333;}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 # ================= LOAD YOUTUBE COMMENTS =================
 def get_youtube_comments(api_key, video_ids, max_comments=100):
@@ -152,7 +173,7 @@ def main():
         df["sentiment"] = df["comment"].apply(analyze_sentiment)
 
     # Menu
-    menu = st.sidebar.radio("Pilih Menu", ["All", "Postingan", "Sentimen", "Analisis", "WordCloud", "Insight & Rekomendasi"])
+    menu = st.sidebar.radio("📌 Pilih Menu", ["All", "Postingan", "Sentimen", "Analisis", "WordCloud", "Insight & Rekomendasi"])
 
     if menu == "All":
         st.subheader("📊 Semua Data dalam Satu Box")
