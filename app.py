@@ -60,11 +60,11 @@ st.markdown(f"""
       .metallic {{ border-radius:10px; padding:10px; color:{FG}; }}
       .video-card {{ border-radius:10px; padding:12px; margin:6px; }}
       .tiny {{ font-size:12px; color:{MUTED}; }}
-      .card-title { font-size:14px; font-weight:700; color:{FG}; margin:0; }
-      .card-value { font-size:20px; font-weight:800; color:{ACCENT}; margin:0; }
-      .gauge-wrap { display:flex; justify-content:center; align-items:center; }
+      .card-title {{ font-size:14px; font-weight:700; color:{FG}; margin:0; }}
+      .card-value {{ font-size:20px; font-weight:800; color:{ACCENT}; margin:0; }}
+      .gauge-wrap {{ display:flex; justify-content:center; align-items:center; }}
       /* make sidebar menu look like boxes */
-      .sidebar .menu-card { width:100%; display:block; }
+      .sidebar .menu-card {{ width:100%; display:block; }}
     </style>
 """, unsafe_allow_html=True)
 
