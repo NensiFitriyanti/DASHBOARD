@@ -364,4 +364,4 @@ if menu == "Dashboard":
                      {'range': [0, neg_pct], 'color': "red"},
                      {'range': [neg_pct, neg_pct+neu_pct], 'color': "gray"},
                      {'range': [neg_pct+neu_pct, 100], 'color': "green"}]}))
-    st.plotly_chart(fig_gauge
+    st.plotly_chart(fig_gauge)
