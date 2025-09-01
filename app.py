@@ -1,6 +1,4 @@
-# ============================================
-# DASHBOARD ANALYSIS STREAMLIT
-# ============================================
+
 import re
 import base64
 from datetime import datetime
@@ -143,52 +141,84 @@ menu = st.sidebar.radio(
 
 st.markdown('<div class="title-center">DASHBOARD ANALYSIS</div>', unsafe_allow_html=True)
 
-# --------------------------
-# 1) DASHBOARD
-# --------------------------
+# ==============================
+# MENU 1: DASHBOARD
+# ==============================
 if menu.startswith("1."):
-    with st.container():
-        st.markdown(f'<div class="{card_class}">', unsafe_allow_html=True)
+    st.title("📊 Dashboard Utama")
 
-        # Box kecil
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Total Komentar", len(df))
-        c2.metric("Total User", df["author"].nunique())
-        c3.metric("Update Terakhir", datetime.now().strftime("%d-%m-%Y %H:%M"))
-        c4.metric("Total Postingan", df["video_id"].nunique())
+    # Buat box 4 kolom
+    c1, c2, c3, c4 = st.columns(4)
 
-        # Gauge
-        sent_count = df["sentiment"].value_counts()
-        total = sent_count.sum() or 1
-        dominant = sent_count.idxmax()
-        percent = sent_count.max() / total * 100
+    # Total komentar
+    total_komentar = len(df) if not df.empty else 0
+    c1.metric("Total Komentar", total_komentar)
 
-        col1, col2, col3 = st.columns([1, 1, 1.2])
-        with col1:
-            st.subheader("Spidometer")
-            fig = go.Figure(go.Indicator(
-                mode="gauge+number",
-                value=percent,
-                title={"text": dominant.title()},
-                gauge={"axis": {"range": [0, 100]}}
-            ))
-            st.plotly_chart(fig, use_container_width=True)
+    # Total user (cek kolom author/authorDisplayName)
+    if "author" in df.columns:
+        total_user = df["author"].nunique()
+    elif "authorDisplayName" in df.columns:
+        total_user = df["authorDisplayName"].nunique()
+    else:
+        total_user = 0
+    c2.metric("Total User", total_user)
 
-        with col2:
-            st.subheader("Donut Sentimen")
-            fig2 = px.pie(sent_count, values=sent_count.values, names=sent_count.index, hole=0.5)
-            st.plotly_chart(fig2, use_container_width=True)
+    # Update terakhir (cek kolom publishedAt)
+    if "publishedAt" in df.columns and not df.empty:
+        update_terakhir = df["publishedAt"].max()
+    else:
+        update_terakhir = "-"
+    c3.metric("Update Terakhir", str(update_terakhir))
 
-        with col3:
-            st.subheader("Table Sentimen")
-            st.table(sent_count.reset_index().rename(columns={"index": "Sentimen", "sentiment": "Jumlah"}))
+    # Total postingan
+    total_postingan = df["video_id"].nunique() if "video_id" in df.columns else 0
+    c4.metric("Total Postingan", total_postingan)
 
-        # Bar jumlah komentar per video
-        st.subheader("Jumlah Komentar per Video")
-        fig3 = px.bar(df.groupby("video_id").size().reset_index(name="Komentar"), x="video_id", y="Komentar")
-        st.plotly_chart(fig3, use_container_width=True)
+    st.markdown("---")
 
-        st.markdown("</div>", unsafe_allow_html=True)
+    # Spidometer (gauge chart sentimen dominan)
+    if "sentiment" in df.columns and not df.empty:
+        sentiment_counts = df["sentiment"].value_counts()
+        total = sentiment_counts.sum()
+        if total > 0:
+            persen_pos = (sentiment_counts.get("positive", 0) / total) * 100
+            persen_neg = (sentiment_counts.get("negative", 0) / total) * 100
+            persen_net = (sentiment_counts.get("neutral", 0) / total) * 100
+        else:
+            persen_pos = persen_neg = persen_net = 0
+    else:
+        persen_pos = persen_neg = persen_net = 0
+
+    gauge_fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=persen_pos,
+        title={'text': "Dominasi Positif (%)"},
+        gauge={'axis': {'range': [0, 100]}}
+    ))
+    st.plotly_chart(gauge_fig, use_container_width=True)
+
+    # Donut Chart Sentimen
+    if "sentiment" in df.columns and not df.empty:
+        donut_fig = px.pie(
+            df, names="sentiment", hole=0.5,
+            title="Distribusi Sentimen"
+        )
+        st.plotly_chart(donut_fig, use_container_width=True)
+
+    # Tabel sentimen
+    if "sentiment" in df.columns and not df.empty:
+        st.subheader("Tabel Sentimen")
+        st.dataframe(df[["comment", "sentiment"]])
+
+    # Grafik jumlah komentar per postingan
+    if "video_id" in df.columns and not df.empty:
+        komentar_per_video = df.groupby("video_id")["comment"].count().reset_index()
+        komentar_per_video = komentar_per_video.rename(columns={"comment": "jumlah_komentar"})
+        bar_fig = px.bar(
+            komentar_per_video, x="video_id", y="jumlah_komentar",
+            title="Jumlah Komentar per Video"
+        )
+        st.plotly_chart(bar_fig, use_container_width=True)
 
 # --------------------------
 # 2) POSTINGAN
