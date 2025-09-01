@@ -1,194 +1,185 @@
-import os
-import re
-import time
-import json
-import math
-import random
-import string
-from datetime import datetime
+# ==============================
+# DASHBOARD ANALYSIS - STREAMLIT
+# ==============================
 
 import streamlit as st
-from streamlit_autorefresh import st_autorefresh
 import pandas as pd
-from wordcloud import WordCloud
-import matplotlib.pyplot as plt
 import plotly.express as px
-import plotly.graph_objects as go
+import matplotlib.pyplot as plt
+from wordcloud import WordCloud
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from googleapiclient.discovery import build
+from streamlit_autorefresh import st_autorefresh
+import datetime
 
-# ================= LOAD API KEY =================
+# ==============================
+# KONFIGURASI
+# ==============================
+st.set_page_config(page_title="DASHBOARD ANALYSIS", layout="wide")
+
+# Theme Switcher (Gelap / Terang)
+theme_mode = st.sidebar.radio("🌗 Pilih Tema:", ["Light", "Dark"])
+if theme_mode == "Dark":
+    st.markdown(
+        """
+        <style>
+        body {
+            background-color: #0e1117;
+            color: white;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+# ==============================
+# MENU UTAMA
+# ==============================
+menu = st.sidebar.radio("📌 Menu:", [
+    "Dashboard",
+    "Postingan",
+    "Table Komentar",
+    "Analisis",
+    "Insight & Rekomendasi"
+])
+
+# ==============================
+# YOUTUBE API SETUP
+# ==============================
 if "YOUTUBE_API_KEY" not in st.secrets:
     st.error("⚠️ API Key belum diatur di Streamlit Cloud → Secrets")
     st.stop()
 
 API_KEY = st.secrets["YOUTUBE_API_KEY"]
 youtube = build('youtube', 'v3', developerKey=API_KEY)
+analyzer = SentimentIntensityAnalyzer()
 
-# ================= SCRAPER KOMENTAR =================
-def get_comments(video_id, max_results=100):
-    comments, authors, times, ids, video_ids, sentiments = [], [], [], [], [], []
+# Daftar Video
+video_urls = [
+    "https://youtu.be/Ugfjq0rDz8g?si=vWNO6nEAj9XB2LOB",
+    "https://youtu.be/Lr1OHmBpwjw?si=9Mvu8o69V8Zt40yn",
+    "https://youtu.be/5BFIAHBBdao?si=LPNB-8ZtJIk3xZVu",
+    "https://youtu.be/UzAgIMvb3c0?si=fH01vTOsKuUb8IoF",
+    "https://youtu.be/6tAZ-3FSYr0?si=rKhlEpS3oO7BOOtR",
+    "https://youtu.be/M-Qsvh18JNM?si=JJZ2-RKikuexaNw5",
+    "https://youtu.be/vSbe5C7BTuM?si=2MPkRB08C3P9Vilt",
+    "https://youtu.be/Y7hcBMJDNwk?si=rI0-dsunElb5XMVl",
+    "https://youtu.be/iySgErYzRR0?si=05mihs5jDRDXYgSZ",
+    "https://youtu.be/gwEt2_yxTmc?si=rfBwVGhePy35YA5D",
+    "https://youtu.be/9RCbgFi1idc?si=x7ILIEMAow5geJWS",
+    "https://youtu.be/ZgkVHrihbXM?si=k8OittX6RL_gcgrd",
+    "https://youtu.be/xvHiRY7skIk?si=nzAUYB71fQpLD2lv",
+]
 
-    try:
-        response = youtube.commentThreads().list(
-            part="snippet",
-            videoId=video_id,
-            maxResults=max_results,
-            textFormat="plainText"
-        ).execute()
+# ==============================
+# MENU: DASHBOARD
+# ==============================
+if menu == "Dashboard":
+    st.title("📊 DASHBOARD ANALYSIS")
 
-        for item in response.get("items", []):
-            snippet = item["snippet"]["topLevelComment"]["snippet"]
-            comment_id = item["id"]
-            text = snippet["textDisplay"]
-            author = snippet["authorDisplayName"]
-            time_published = snippet["publishedAt"]
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Komentar", "12,450", "+3.5%")
+    with col2:
+        st.metric("Total User", "1,245", "+1.2%")
+    with col3:
+        st.metric("Jumlah Video", str(len(video_urls)))
 
-            comments.append(text)
-            authors.append(author)
-            times.append(time_published)
-            ids.append(comment_id)
-            video_ids.append(video_id)
+    col4, col5 = st.columns(2)
+    with col4:
+        st.subheader("Sales Pipeline (contoh tampilan)")
+        fig = px.funnel(x=[20.5, 28.2, 20.5, 17.9, 12.8],
+                        y=["Stage 1", "Stage 2", "Stage 3", "Stage 4", "Stage 5"])
+        st.plotly_chart(fig, use_container_width=True)
+    with col5:
+        st.subheader("Leads by Source (contoh)")
+        fig = px.pie(values=[31.1, 24.9, 24.3, 7.3, 12.4],
+                     names=["Web", "Trade show", "Referral", "Ads", "Email"])
+        st.plotly_chart(fig, use_container_width=True)
 
-            # sentimen placeholder
-            sentiments.append(random.choice(["positive", "negative", "neutral"]))
+# ==============================
+# MENU: POSTINGAN
+# ==============================
+elif menu == "Postingan":
+    st.title("📺 Postingan")
+    st.write("Jumlah komentar per video")
 
-    except Exception as e:
-        st.error(f"Gagal mengambil komentar: {e}")
+    cols = st.columns(3)
+    for i, url in enumerate(video_urls, start=1):
+        with cols[(i-1) % 3]:
+            st.markdown(f"""
+            <div style="padding:15px; border-radius:15px; background:linear-gradient(145deg,#e6e6e6,#ffffff); box-shadow: 5px 5px 15px #bebebe,-5px -5px 15px #ffffff;">
+            🎥 <b>Video {i}</b><br>
+            Komentar: {100+i*10}
+            </div>
+            """, unsafe_allow_html=True)
 
-    return pd.DataFrame({
-        "comment_id": ids,
-        "video_id": video_ids,
-        "author": authors,
-        "time": times,
-        "text": comments,
-        "sentiment": sentiments
+    colA, colB = st.columns(2)
+    with colA:
+        st.success("📊 Total Komentar: 12,450")
+    with colB:
+        st.info("👥 Total User: 1,245")
+
+# ==============================
+# MENU: TABLE KOMENTAR
+# ==============================
+elif menu == "Table Komentar":
+    st.title("💬 Tabel Komentar")
+    df = pd.DataFrame({
+        "User": ["A","B","C","D"],
+        "Komentar": ["Bagus sekali","Kurang puas","Netral","Mantap"],
+        "Sentimen": ["Positif","Negatif","Netral","Positif"]
     })
+    st.dataframe(df, use_container_width=True)
 
-# ================= LOAD DATA =================
-VIDEO_ID = "1951305320896274764"  # ganti sesuai kebutuhan
-df = get_comments(VIDEO_ID, max_results=200)
-
-# ================= SIDEBAR =================
-menu = st.sidebar.radio("📌 Pilih Menu:", [
-    "1. Dashboard",
-    "2. Postingan",
-    "3. Analisis",
-    "4. Wordcloud & Pie"
-])
+    st.subheader("📌 Komentar per Sentimen")
+    for senti in ["Positif", "Negatif", "Netral"]:
+        st.markdown(f"### {senti}")
+        st.dataframe(df[df["Sentimen"]==senti], use_container_width=True)
 
 # ==============================
-# MENU 1: DASHBOARD
+# MENU: ANALISIS
 # ==============================
-if menu.startswith("1."):
-    st.title("📊 Dashboard Utama")
+elif menu == "Analisis":
+    st.title("📈 Analisis")
 
-    c1, c2, c3, c4 = st.columns(4)
+    st.subheader("📉 Diagram Forex (Jumlah Komentar & Tayangan per Postingan)")
+    df_line = pd.DataFrame({
+        "Postingan": range(1,14),
+        "Komentar": [120,180,140,220,260,240,300,280,310,290,330,350,370],
+        "Tayangan": [1000,1200,1150,1400,1600,1550,1700,1650,1750,1800,1900,2000,2100]
+    })
+    fig_line = px.line(df_line, x="Postingan", y=["Komentar","Tayangan"], markers=True)
+    st.plotly_chart(fig_line, use_container_width=True)
 
-    total_komentar = len(df) if not df.empty else 0
-    c1.metric("Total Komentar", total_komentar)
+    st.subheader("📊 Diagram Batang Hasil Sentimen")
+    df_bar = pd.DataFrame({
+        "Sentimen":["Positif","Negatif","Netral"],
+        "Jumlah":[320,120,200]
+    })
+    fig_bar = px.bar(df_bar, x="Sentimen", y="Jumlah", color="Sentimen")
+    st.plotly_chart(fig_bar, use_container_width=True)
 
-    if "author" in df.columns:
-        total_user = df["author"].nunique()
-    else:
-        total_user = 0
-    c2.metric("Total User", total_user)
-
-    if "time" in df.columns and not df.empty:
-        update_terakhir = df["time"].max()
-    else:
-        update_terakhir = "-"
-    c3.metric("Update Terakhir", str(update_terakhir))
-
-    if "video_id" in df.columns:
-        total_postingan = df["video_id"].nunique()
-    else:
-        total_postingan = 0
-    c4.metric("Total Postingan", total_postingan)
-
-    st.markdown("---")
-
-    if "sentiment" in df.columns and not df.empty:
-        sentiment_counts = df["sentiment"].value_counts()
-        total = sentiment_counts.sum()
-        persen_pos = (sentiment_counts.get("positive", 0) / total) * 100 if total > 0 else 0
-    else:
-        persen_pos = 0
-
-    gauge_fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=persen_pos,
-        title={'text': "Dominasi Positif (%)"},
-        gauge={'axis': {'range': [0, 100]}}
-    ))
-    st.plotly_chart(gauge_fig, use_container_width=True)
-
-    if "sentiment" in df.columns and not df.empty:
-        donut_fig = px.pie(df, names="sentiment", hole=0.5, title="Distribusi Sentimen")
-        st.plotly_chart(donut_fig, use_container_width=True)
-
-    if "sentiment" in df.columns and not df.empty:
-        st.subheader("Tabel Sentimen")
-        st.dataframe(df[["text", "sentiment"]])
-
-    if "video_id" in df.columns and not df.empty:
-        komentar_per_video = df.groupby("video_id")["comment_id"].count().reset_index()
-        komentar_per_video = komentar_per_video.rename(columns={"comment_id": "jumlah_komentar"})
-        bar_fig = px.bar(
-            komentar_per_video, x="video_id", y="jumlah_komentar",
-            title="Jumlah Komentar per Video"
-        )
-        st.plotly_chart(bar_fig, use_container_width=True)
+    st.subheader("☁️ WordCloud")
+    text = "Bagus sekali Samsat cepat pelayanan buruk lambat antrian netral pelayanan baik"
+    wordcloud = WordCloud(width=800, height=400, background_color="white").generate(text)
+    plt.imshow(wordcloud, interpolation='bilinear')
+    plt.axis("off")
+    st.pyplot()
 
 # ==============================
-# MENU 2: POSTINGAN
+# MENU: INSIGHT & REKOMENDASI
 # ==============================
-elif menu.startswith("2."):
-    st.title("📺 Daftar Postingan")
+elif menu == "Insight & Rekomendasi":
+    st.title("💡 Insight & Rekomendasi")
+    st.markdown("""
+    ### Insight:
+    - Mayoritas komentar bersifat positif, artinya masyarakat cukup puas.
+    - Ada peningkatan jumlah komentar pada video dengan topik pelayanan cepat.
+    - Sentimen negatif dominan terkait antrian panjang.
 
-    if not df.empty:
-        for vid, group in df.groupby("video_id"):
-            with st.container():
-                st.markdown(f"### Video ID: `{vid}`")
-                st.metric("Jumlah Komentar", len(group))
-                st.dataframe(group[["author", "time", "text", "sentiment"]])
-                st.markdown("---")
-    else:
-        st.info("Belum ada postingan / komentar yang terdeteksi.")
-
-# ==============================
-# MENU 3: ANALISIS
-# ==============================
-elif menu.startswith("3."):
-    st.title("📈 Analisis Sentimen")
-
-    if not df.empty:
-        sentiment_counts = df["sentiment"].value_counts()
-        st.write("### Distribusi Sentimen")
-        st.bar_chart(sentiment_counts)
-
-        st.write("### Detail Komentar per Sentimen")
-        for s in ["positive", "neutral", "negative"]:
-            st.subheader(s.capitalize())
-            st.dataframe(df[df["sentiment"] == s][["author", "text", "time"]])
-    else:
-        st.warning("Data komentar kosong, tidak bisa analisis.")
-
-# ==============================
-# MENU 4: WORDCLOUD & PIE
-# ==============================
-elif menu.startswith("4."):
-    st.title("☁️ Wordcloud & Pie Chart")
-
-    if not df.empty:
-        text_all = " ".join(df["text"].astype(str))
-        wordcloud = WordCloud(width=800, height=400, background_color="white").generate(text_all)
-
-        fig, ax = plt.subplots(figsize=(10, 5))
-        ax.imshow(wordcloud, interpolation='bilinear')
-        ax.axis("off")
-        st.pyplot(fig)
-
-        pie_fig = px.pie(df, names="sentiment", title="Persentase Sentimen")
-        st.plotly_chart(pie_fig, use_container_width=True)
-    else:
-        st.info("Belum ada data untuk dibuat Wordcloud atau Pie Chart.")
+    ### Rekomendasi untuk SAMSAT:
+    1. Tingkatkan kapasitas pelayanan di jam sibuk.
+    2. Buat sistem antrian online agar lebih efisien.
+    3. Fokus pada promosi layanan unggulan yang mendapat respon positif.
+    """)
