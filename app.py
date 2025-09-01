@@ -480,74 +480,66 @@ elif menu == "Insight & Rekomendasi":
 elif menu == "Insight & Rekomendasi":
     st.subheader("📊 Insight & Rekomendasi untuk Layanan Samsat")
 
-    # ===================== Hitung Sentimen =====================
+    # ===================== HITUNG HASIL SENTIMEN =====================
     total = len(df)
-    pos = len(df[df['sentiment'] == 'positive'])
-    neg = len(df[df['sentiment'] == 'negative'])
-    neu = len(df[df['sentiment'] == 'neutral'])
+    pos = len(df[df['label'] == 'positif'])
+    neg = len(df[df['label'] == 'negatif'])
+    neu = len(df[df['label'] == 'netral'])
 
     persen_pos = round((pos/total)*100, 2) if total > 0 else 0
     persen_neg = round((neg/total)*100, 2) if total > 0 else 0
     persen_neu = round((neu/total)*100, 2) if total > 0 else 0
 
-    # ===================== Kata Dominan =====================
-    from collections import Counter
+    # ===================== BUAT INSIGHT OTOMATIS =====================
+    if pos >= neg and pos >= neu:
+        insight = f"Mayoritas masyarakat menunjukkan <b>sentimen positif ({persen_pos}%)</b> terhadap pelayanan Samsat. " \
+                  f"Hal ini menunjukkan bahwa sebagian besar pengguna puas dengan layanan yang diberikan, " \
+                  f"terutama pada aspek kemudahan proses dan kecepatan pelayanan."
+    elif neg >= pos and neg >= neu:
+        insight = f"Mayoritas masyarakat menunjukkan <b>sentimen negatif ({persen_neg}%)</b> terhadap pelayanan Samsat. " \
+                  f"Hal ini menandakan masih banyak keluhan terkait antrean panjang, keterbatasan fasilitas, " \
+                  f"dan kurangnya transparansi informasi biaya layanan."
+    else:
+        insight = f"Mayoritas masyarakat menunjukkan <b>sentimen netral ({persen_neu}%)</b>, " \
+                  f"menandakan pengalaman pengguna cukup berimbang antara puas dan tidak puas."
 
-    # Ambil kata dari komentar yang sudah dibersihkan
-    all_words = " ".join(df["text_clean"]).split()
-    top_words = Counter(all_words).most_common(5)  # ambil 5 kata paling sering
+    # ===================== BUAT REKOMENDASI OTOMATIS =====================
+    rekomendasi = []
+    if neg > 0:
+        rekomendasi.append("Perbaiki sistem antrian agar lebih cepat dan teratur.")
+        rekomendasi.append("Tingkatkan transparansi informasi biaya layanan.")
+        rekomendasi.append("Perluas fasilitas layanan cepat seperti drive thru atau loket prioritas.")
+    if pos > 0:
+        rekomendasi.append("Pertahankan kecepatan dan kemudahan proses yang sudah diapresiasi masyarakat.")
+        rekomendasi.append("Tingkatkan inovasi digital agar pelayanan semakin mudah diakses.")
+    if neu > 0:
+        rekomendasi.append("Kembangkan layanan digital agar pengalaman pengguna lebih konsisten.")
+        rekomendasi.append("Sediakan saluran feedback online untuk menampung saran masyarakat.")
 
-    # ===================== INSIGHT =====================
+    # Ubah list ke HTML <li>
+    rek_html = "".join([f"<li>{r}</li>" for r in rekomendasi])
+
+    # ===================== TAMPILKAN KE STREAMLIT =====================
+    # Insight
     st.markdown(
         f"""
         <div class='card3d' style='padding:20px; margin-bottom:20px;'>
           <h2 style='text-align:center; margin-bottom:15px;'>🔎 Insight Utama</h2>
-          <p style='text-align:justify; font-size:16px;'>
-            Dari total <b>{total}</b> komentar yang dianalisis:
-            <ul>
-              <li>Sentimen Positif: <b>{persen_pos}%</b></li>
-              <li>Sentimen Negatif: <b>{persen_neg}%</b></li>
-              <li>Sentimen Netral: <b>{persen_neu}%</b></li>
-            </ul>
-            Hal ini menunjukkan bahwa mayoritas komentar bersifat
-            <b>{'positif' if persen_pos > persen_neg else 'negatif'}</b>.
-          </p>
+          <p style='text-align:justify; font-size:16px;'>{insight}</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # ===================== KATA DOMINAN =====================
+    # Rekomendasi
     st.markdown(
-        """
-        <div class='card3d' style='padding:20px; margin-bottom:20px;'>
-          <h2 style='text-align:center; margin-bottom:15px;'>📌 Kata Dominan</h2>
-        """,
-        unsafe_allow_html=True,
-    )
-    for word, freq in top_words:
-        st.markdown(f"- **{word}** ({freq} kali)")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # ===================== REKOMENDASI =====================
-    rekom = []
-    if persen_neg > 30:
-        rekom.append("Perlu peningkatan kualitas layanan untuk mengurangi sentimen negatif.")
-    if persen_pos > 50:
-        rekom.append("Pertahankan aspek layanan yang sudah baik, terutama yang banyak diapresiasi masyarakat.")
-    if persen_neu > 20:
-        rekom.append("Sediakan informasi yang lebih jelas agar komentar netral dapat berubah menjadi positif.")
-    if not rekom:
-        rekom.append("Secara umum layanan sudah cukup seimbang, perlu evaluasi berkala untuk mempertahankan kualitas.")
-
-    st.markdown(
-        """
+        f"""
         <div class='card3d' style='padding:20px;'>
-          <h2 style='text-align:center; margin-bottom:15px;'>💡 Rekomendasi</h2>
+          <h2 style='text-align:center; margin-bottom:15px;'>💡 Rekomendasi Strategis</h2>
+          <ul style='font-size:16px; line-height:1.8;'>
+            {rek_html}
+          </ul>
+        </div>
         """,
         unsafe_allow_html=True,
     )
-    for r in rekom:
-        st.markdown(f"- {r}")
-    st.markdown("</div>", unsafe_allow_html=True)
