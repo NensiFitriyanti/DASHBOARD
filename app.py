@@ -477,34 +477,77 @@ elif menu == "Insight & Rekomendasi":
     st.subheader("📊 Insight & Rekomendasi untuk Layanan Samsat")
 
     # ===================== INSIGHT =====================
+elif menu == "Insight & Rekomendasi":
+    st.subheader("📊 Insight & Rekomendasi untuk Layanan Samsat")
+
+    # ===================== Hitung Sentimen =====================
+    total = len(df)
+    pos = len(df[df['sentiment'] == 'positive'])
+    neg = len(df[df['sentiment'] == 'negative'])
+    neu = len(df[df['sentiment'] == 'neutral'])
+
+    persen_pos = round((pos/total)*100, 2) if total > 0 else 0
+    persen_neg = round((neg/total)*100, 2) if total > 0 else 0
+    persen_neu = round((neu/total)*100, 2) if total > 0 else 0
+
+    # ===================== Kata Dominan =====================
+    from collections import Counter
+
+    # Ambil kata dari komentar yang sudah dibersihkan
+    all_words = " ".join(df["text_clean"]).split()
+    top_words = Counter(all_words).most_common(5)  # ambil 5 kata paling sering
+
+    # ===================== INSIGHT =====================
     st.markdown(
-        """
+        f"""
         <div class='card3d' style='padding:20px; margin-bottom:20px;'>
           <h2 style='text-align:center; margin-bottom:15px;'>🔎 Insight Utama</h2>
           <p style='text-align:justify; font-size:16px;'>
-            Berdasarkan hasil analisis sentimen terhadap komentar pengguna, mayoritas masyarakat menunjukkan
-            <b>sentimen positif</b> terhadap pelayanan Samsat, khususnya dalam aspek kemudahan proses dan kecepatan layanan.
-            Namun demikian, masih terdapat <b>sentimen negatif</b> yang dominan terkait waktu antrean panjang,
-            keterbatasan fasilitas, dan kurangnya transparansi informasi biaya layanan.
+            Dari total <b>{total}</b> komentar yang dianalisis:
+            <ul>
+              <li>Sentimen Positif: <b>{persen_pos}%</b></li>
+              <li>Sentimen Negatif: <b>{persen_neg}%</b></li>
+              <li>Sentimen Netral: <b>{persen_neu}%</b></li>
+            </ul>
+            Hal ini menunjukkan bahwa mayoritas komentar bersifat
+            <b>{'positif' if persen_pos > persen_neg else 'negatif'}</b>.
           </p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # ===================== REKOMENDASI =====================
+    # ===================== KATA DOMINAN =====================
     st.markdown(
         """
-        <div class='card3d' style='padding:20px;'>
-          <h2 style='text-align:center; margin-bottom:15px;'>💡 Rekomendasi Strategis</h2>
-          <ul style='font-size:16px; line-height:1.8;'>
-            <li>Tingkatkan <b>sistem antrian online</b> untuk mengurangi waktu tunggu masyarakat.</li>
-            <li>Sediakan <b>informasi biaya dan prosedur</b> yang lebih transparan di website maupun aplikasi resmi.</li>
-            <li>Perluas <b>fasilitas layanan cepat</b> (drive thru atau loket prioritas) untuk kebutuhan tertentu.</li>
-            <li>Tambahkan <b>saluran feedback online</b> agar masyarakat bisa menyampaikan keluhan dan saran secara langsung.</li>
-            <li>Optimalkan <b>media sosial</b> sebagai sarana komunikasi aktif antara Samsat dan masyarakat.</li>
-          </ul>
-        </div>
+        <div class='card3d' style='padding:20px; margin-bottom:20px;'>
+          <h2 style='text-align:center; margin-bottom:15px;'>📌 Kata Dominan</h2>
         """,
         unsafe_allow_html=True,
     )
+    for word, freq in top_words:
+        st.markdown(f"- **{word}** ({freq} kali)")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # ===================== REKOMENDASI =====================
+    rekom = []
+    if persen_neg > 30:
+        rekom.append("Perlu peningkatan kualitas layanan untuk mengurangi sentimen negatif.")
+    if persen_pos > 50:
+        rekom.append("Pertahankan aspek layanan yang sudah baik, terutama yang banyak diapresiasi masyarakat.")
+    if persen_neu > 20:
+        rekom.append("Sediakan informasi yang lebih jelas agar komentar netral dapat berubah menjadi positif.")
+    if not rekom:
+        rekom.append("Secara umum layanan sudah cukup seimbang, perlu evaluasi berkala untuk mempertahankan kualitas.")
+
+    st.markdown(
+        """
+        <div class='card3d' style='padding:20px;'>
+          <h2 style='text-align:center; margin-bottom:15px;'>💡 Rekomendasi</h2>
+        """,
+        unsafe_allow_html=True,
+    )
+    for r in rekom:
+        st.markdown(f"- {r}")
+    st.markdown("</div>", unsafe_allow_html=True)
