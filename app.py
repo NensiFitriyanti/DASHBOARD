@@ -474,9 +474,37 @@ elif menu == "WordCloud":
         st.info("Belum ada data komentar.")
 
 elif menu == "Insight & Rekomendasi":
-    st.subheader("Insight & Rekomendasi untuk Samsat (otomatis)")
-    st.write("**Ringkasan**", ins["ringkasan"])
-    st.write("**Top Kata**", ins["top_kata"])
-    st.write("**Rekomendasi**")
-    for r in ins["rekomendasi"]:
-        st.markdown(f"- {r}")
+    st.subheader("📊 Insight & Rekomendasi untuk Layanan Samsat")
+
+    # ===================== INSIGHT =====================
+    st.markdown(
+        """
+        <div class='card3d' style='padding:20px; margin-bottom:20px;'>
+          <h2 style='text-align:center; margin-bottom:15px;'>🔎 Insight Utama</h2>
+          <p style='text-align:justify; font-size:16px;'>
+            Berdasarkan hasil analisis sentimen terhadap komentar pengguna, mayoritas masyarakat menunjukkan
+            <b>sentimen positif</b> terhadap pelayanan Samsat, khususnya dalam aspek kemudahan proses dan kecepatan layanan.
+            Namun demikian, masih terdapat <b>sentimen negatif</b> yang dominan terkait waktu antrean panjang,
+            keterbatasan fasilitas, dan kurangnya transparansi informasi biaya layanan.
+          </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # ===================== REKOMENDASI =====================
+    st.markdown(
+        """
+        <div class='card3d' style='padding:20px;'>
+          <h2 style='text-align:center; margin-bottom:15px;'>💡 Rekomendasi Strategis</h2>
+          <ul style='font-size:16px; line-height:1.8;'>
+            <li>Tingkatkan <b>sistem antrian online</b> untuk mengurangi waktu tunggu masyarakat.</li>
+            <li>Sediakan <b>informasi biaya dan prosedur</b> yang lebih transparan di website maupun aplikasi resmi.</li>
+            <li>Perluas <b>fasilitas layanan cepat</b> (drive thru atau loket prioritas) untuk kebutuhan tertentu.</li>
+            <li>Tambahkan <b>saluran feedback online</b> agar masyarakat bisa menyampaikan keluhan dan saran secara langsung.</li>
+            <li>Optimalkan <b>media sosial</b> sebagai sarana komunikasi aktif antara Samsat dan masyarakat.</li>
+          </ul>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
