@@ -235,7 +235,7 @@ by_label = df["label"].value_counts().reindex(["positif","negatif","netral"]).fi
 st.sidebar.subheader("Menu")
 menu = st.sidebar.radio(
     "Pilih halaman:",
-    options=["All", "Sentimen", "Analisis", "WordCloud", "Insight & Rekomendasi"],
+    options=["Dashboard", "All", "Sentimen", "Analisis", "WordCloud", "Insight & Rekomendasi"],
     index=0
 )
 st.sidebar.markdown("<div class='nav3d'></div>", unsafe_allow_html=True)
@@ -324,72 +324,44 @@ ins = make_insights(df)
 # =====================
 # ====== PAGES =========
 # =====================
-if menu == "All":
-    st.markdown("<hr class='sep' />", unsafe_allow_html=True)
-    cols = st.columns(min(6, max(1, len(by_video))))
-    for i, (_, row) in enumerate(by_video.iterrows()):
-        with cols[i % len(cols)]:
-            st.markdown(f"<div class='stat3d'><h3>Video {i+1}</h3><p>{int(row['total_komentar']):,} komentar</p></div>", unsafe_allow_html=True)
+if menu == "Dashboard":
+    st.subheader("Dashboard Sentimen YouTube")
 
-    c1, c2 = st.columns(2)
+    # --- 4 kotak utama ---
+    total_komen = int(df.shape[0])
+    unique_user = int(df["author"].nunique())
+    last_update = df["publishedAt"].max() if not df.empty else None
+    total_posting = df["video_id"].nunique() if not df.empty else 0
+
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.markdown(f"<div class='bigstat3d'><h2>Total Komentar</h2><p>{int(df.shape[0]):,}</p></div>", unsafe_allow_html=True)
+        st.metric(label="Total Komentar", value=f"{total_komen:,}", delta=None)
     with c2:
-        st.markdown(f"<div class='bigstat3d'><h2>Total User</h2><p>{int(df['author'].nunique()):,}</p></div>", unsafe_allow_html=True)
-
-    st.markdown("<hr class='sep' />", unsafe_allow_html=True)
-    st.markdown("<div class='card3d'>", unsafe_allow_html=True)
-    c1, c2 = st.columns([1,1])
-    with c1:
-        st.subheader("Grafik Sentimen (Donut)")
-        st.plotly_chart(donut_sentiment_chart(by_label), use_container_width=True)
-    with c2:
-        st.subheader("Jumlah Komentar per Video")
-        st.plotly_chart(bar_per_video(by_video), use_container_width=True)
-
-    st.markdown("<hr class='sep' />", unsafe_allow_html=True)
-    c3, c4 = st.columns([1,1])
+        st.metric(label="Total User", value=f"{unique_user:,}", delta=None)
     with c3:
-        st.subheader("WordCloud")
-        if not df.empty:
-            st.pyplot(build_wordcloud(df["text_clean"].tolist()), use_container_width=True)
-        else:
-            st.info("Belum ada data komentar.")
+        st.metric(label="Waktu Update Terakhir", value=f"{last_update}" if last_update else "-")
     with c4:
-        st.subheader("Insight & Rekomendasi (Samsat)")
-        st.write("**Ringkasan**", ins["ringkasan"])
-        st.write("**Top Kata**", ins["top_kata"])
-        st.write("**Rekomendasi**")
-        for r in ins["rekomendasi"]:
-            st.markdown(f"- {r}")
-    st.markdown("</div>", unsafe_allow_html=True)
+        st.metric(label="Total Postingan Aktif", value=f"{total_posting}")
 
-elif menu == "Sentimen":
-    st.subheader("Tabel Komentar & Sentimen")
-    show_cols = ["publishedAt","author","text","score","label","video_id"]
-    st.dataframe(df[show_cols].sort_values("publishedAt", ascending=False), use_container_width=True, height=420)
     st.markdown("<hr class='sep' />", unsafe_allow_html=True)
-    st.subheader("Distribusi Sentimen")
-    st.plotly_chart(bar_sentiment_counts(by_label), use_container_width=True)
 
-elif menu == "Analisis":
-    st.subheader("Chart 3D – Jumlah Komentar per Video")
-    if not by_video.empty:
-        st.pyplot(bar3d_per_video(by_video), use_container_width=True)
-    else:
-        st.info("Belum ada data untuk divisualisasikan.")
+    # --- Speedometer sentimen (positif-negatif-netral) ---
+    from plotly.subplots import make_subplots
+    import plotly.graph_objects as go
 
-elif menu == "WordCloud":
-    st.subheader("WordCloud")
-    if not df.empty:
-        st.pyplot(build_wordcloud(df["text_clean"].tolist()), use_container_width=True)
-    else:
-        st.info("Belum ada data komentar.")
+    total = total_komen if total_komen > 0 else 1
+    pos_pct = round((by_label.get("positif",0)/total)*100,1)
+    neg_pct = round((by_label.get("negatif",0)/total)*100,1)
+    neu_pct = round((by_label.get("netral",0)/total)*100,1)
 
-elif menu == "Insight & Rekomendasi":
-    st.subheader("Insight & Rekomendasi untuk Samsat (otomatis)")
-    st.write("**Ringkasan**", ins["ringkasan"])
-    st.write("**Top Kata**", ins["top_kata"])
-    st.write("**Rekomendasi**")
-    for r in ins["rekomendasi"]:
-        st.markdown(f"- {r}")
+    fig_gauge = go.Figure(go.Indicator(
+        mode = "gauge+number",
+        value = pos_pct,
+        title = {'text': "Sentimen Positif (%)"},
+        gauge = {'axis': {'range': [0, 100]},
+                 'bar': {'color': "green"},
+                 'steps': [
+                     {'range': [0, neg_pct], 'color': "red"},
+                     {'range': [neg_pct, neg_pct+neu_pct], 'color': "gray"},
+                     {'range': [neg_pct+neu_pct, 100], 'color': "green"}]}))
+    st.plotly_chart(fig_gauge
