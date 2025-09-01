@@ -68,40 +68,50 @@ comments_per_video = np.random.randint(50, 400, size=13)
 videos = [f"Video {i+1}" for i in range(13)]
 
 # ================== MENU ALL ==================
-with menu[0]:
-    st.subheader("📊 Ringkasan Semua Data")
+# ---------- BAGIAN ATAS ----------
+col1, col2 = st.columns([2, 1])  
 
-    # Grid 2x2
-    col1, col2 = st.columns(2)
-    col3, col4 = st.columns(2)
+with col1:
+    box1, box2 = st.columns(2)
+    with box1:
+        st.metric("Total Komentar", "1200")
+    with box2:
+        st.metric("Total User", "350")
 
-    with col1:
-        st.markdown(f'<div class="card"><div class="card-title">Total Komentar</div><div class="card-value">{total_comments}</div></div>', unsafe_allow_html=True)
-    with col2:
-        st.markdown(f'<div class="card"><div class="card-title">Total User</div><div class="card-value">{total_users}</div></div>', unsafe_allow_html=True)
-    with col3:
-        st.markdown(f'<div class="card"><div class="card-title">Update Terakhir</div><div class="card-value">{last_update}</div></div>', unsafe_allow_html=True)
-    with col4:
-        st.markdown(f'<div class="card"><div class="card-title">Video Terpantau</div><div class="card-value">{video_monitored}</div></div>', unsafe_allow_html=True)
+    box3, box4 = st.columns(2)
+    with box3:
+        st.metric("Update Terakhir", "18:33")
+    with box4:
+        st.metric("Video Terpantau", "13")
 
-    # Spidometer dummy (pakai matplotlib pie)
-    st.markdown("### ⚡ Hasil Sentimen")
-    labels = ["Positif", "Netral", "Negatif"]
-    sizes = [55, 25, 20]
-    fig1, ax1 = plt.subplots()
-    ax1.pie(sizes, labels=labels, autopct='%1.0f%%', startangle=90)
-    st.pyplot(fig1)
+with col2:
+    # Spidometer Sentimen
+    gauge = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=72,
+        title={'text': "Sentimen"},
+        gauge={'axis': {'range': [0, 100]}}
+    ))
+    st.plotly_chart(gauge, use_container_width=True)
 
-    # Table + Grafik batang
-    col_left, col_right = st.columns([1.2, 1])
-    with col_left:
-        df = pd.DataFrame({"Video": videos, "Jumlah Komentar": comments_per_video})
-        st.dataframe(df)
-    with col_right:
-        fig2, ax2 = plt.subplots()
-        ax2.bar(videos, comments_per_video)
-        ax2.set_xticklabels(videos, rotation=45, ha="right")
-        st.pyplot(fig2)
+# ---------- BAGIAN BAWAH ----------
+col3, col4 = st.columns([1, 1])
+
+with col3:
+    st.subheader("Tabel Sentimen")
+    data = {
+        "Video": [f"Video {i}" for i in range(1, 8)],
+        "Positif": [30, 50, 40, 60, 55, 70, 80],
+        "Negatif": [10, 20, 15, 25, 30, 20, 15],
+        "Netral": [5, 10, 8, 12, 10, 15, 20]
+    }
+    df = pd.DataFrame(data)
+    st.dataframe(df)
+
+with col4:
+    st.subheader("Grafik Komentar per Video")
+    bar = px.bar(df, x="Video", y=["Positif", "Negatif", "Netral"], barmode="group")
+    st.plotly_chart(bar, use_container_width=True)
 
 # ================== MENU POSTINGAN ==================
 with menu[1]:
