@@ -19,9 +19,7 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from googleapiclient.discovery import build
 
-# =====================
 # ====== CONFIG ========
-# =====================
 st.set_page_config(
     page_title="DASBOARD SENTIMENT ANLYSIS",
     page_icon="📊",
@@ -53,10 +51,8 @@ VIDEO_URLS = [
     "https://youtu.be/xvHiRY7skIk?si=nzAUYB71fQpLD2lv",
 ]
 
-# =====================
 # ====== STYLES =======
-# =====================
-# Dark/Light custom theme via CSS variables
+# =====================# Dark/Light custom theme via CSS variables
 if "theme" not in st.session_state:
     st.session_state.theme = "dark"
 
@@ -257,53 +253,6 @@ by_video = (
 by_label = df["label"].value_counts().reindex(["positif","negatif","netral"]).fillna(0).astype(int)
 
 # =====================
-# ====== HEADER ========
-# =====================
-# Small stat boxes: total komentar per postingan
-st.markdown("<hr class='sep' />", unsafe_allow_html=True)
-
-cols = st.columns(min(6, max(1, len(by_video))))
-for i, (_, row) in enumerate(by_video.iterrows()):
-    with cols[i % len(cols)]:
-        st.markdown(
-            f"""
-            <div class='stat3d'>
-              <h3>Video: <code>{row['video_id']}</code></h3>
-              <p>{int(row['total_komentar']):,} komentar</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-# Long stats bottom: total komentar & total user
-total_komen = int(df.shape[0])
-unique_user = int(df["author"].nunique())
-
-c1, c2 = st.columns(2)
-with c1:
-    st.markdown(
-        f"""
-        <div class='bigstat3d'>
-          <h2>Total Komentar</h2>
-          <p>{total_komen:,}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-with c2:
-    st.markdown(
-        f"""
-        <div class='bigstat3d'>
-          <h2>Total User</h2>
-          <p>{unique_user:,}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-st.markdown("<hr class='sep' />", unsafe_allow_html=True)
-
-# =====================
 # ====== NAV ========
 # =====================
 st.sidebar.subheader("Menu")
@@ -417,6 +366,51 @@ ins = make_insights(df)
 # ====== PAGES =========
 # =====================
 if menu == "All":
+    # --- stat3d per video (small boxes) ---
+    st.markdown("<hr class='sep' />", unsafe_allow_html=True)
+
+    cols = st.columns(min(6, max(1, len(by_video))))
+    for i, (_, row) in enumerate(by_video.iterrows()):
+        with cols[i % len(cols)]:
+            st.markdown(
+                f"""
+                <div class='stat3d'>
+                  <h3>Video: <code>{row['video_id']}</code></h3>
+                  <p>{int(row['total_komentar']):,} komentar</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    # --- big stats (total komentar & total user) ---
+    total_komen = int(df.shape[0])
+    unique_user = int(df["author"].nunique())
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown(
+            f"""
+            <div class='bigstat3d'>
+              <h2>Total Komentar</h2>
+              <p>{total_komen:,}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with c2:
+        st.markdown(
+            f"""
+            <div class='bigstat3d'>
+              <h2>Total User</h2>
+              <p>{unique_user:,}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("<hr class='sep' />", unsafe_allow_html=True)
+
+    # --- card utama ---
     st.markdown("<div class='card3d'>", unsafe_allow_html=True)
 
     c1, c2 = st.columns([1,1])
