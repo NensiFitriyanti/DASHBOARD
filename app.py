@@ -218,29 +218,27 @@ if menu == 'Sentiment':
             with c3:
                 st.markdown(f"<div style='background:#e74c3c;padding:20px;border-radius:6px;color:white;text-align:center'><h3>\U0001F61E<br>Sentimen Negatif</h3><h2>{neg_count}</h2></div>", unsafe_allow_html=True)
 
-# ============== Statistik per hari & Pie Chart sejajar ================
-st.markdown("### Statistik Total Data Sentimen & Persentase")
+            # Statistik per hari
+            st.markdown('### Statistik Total Data Sentimen')
+            stat_df = filtered.copy()
+            stat_df['date'] = stat_df['published_at'].dt.date
+            by_date = stat_df.groupby('date').size().reset_index(name='count')
+            fig, ax = plt.subplots()
+            ax.plot(by_date['date'], by_date['count'], marker='o')
+            ax.set_xlabel('Tanggal')
+            ax.set_ylabel('Jumlah Komentar')
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
 
-col1, col2 = st.columns(2)
-
-with col1:
-    stat_df = filtered.copy()
-    stat_df['date'] = stat_df['published_at'].dt.date
-    by_date = stat_df.groupby('date').size().reset_index(name='count')
-    fig, ax = plt.subplots()
-    ax.plot(by_date['date'], by_date['count'], marker='o')
-    ax.set_xlabel('Tanggal')
-    ax.set_ylabel('Jumlah Komentar')
-    plt.xticks(rotation=45)
-    st.pyplot(fig)
-
-with col2:
-    pie_df = pd.Series([pos_count, neu_count, neg_count], 
-                       index=['Positif','Netral','Negatif'])
-    fig2, ax2 = plt.subplots()
-    pie_df.plot.pie(autopct='%1.1f%%', ax=ax2, startangle=90)
-    ax2.set_ylabel('')
-    st.pyplot(fig2)
+            # Pie chart
+            st.markdown('### Persentase Sentimen')
+            pie_df = pd.Series([pos_count, neu_count, neg_count], index=['Positif','Netral','Negatif'])
+            fig2, ax2 = plt.subplots()
+            pie_df.plot.pie(y='count', autopct='%1.1f%%', ax=ax2)
+            ax2.set_ylabel('')
+            st.pyplot(fig2)
+        else:
+            st.info('Belum ada data komentar. Silakan ambil data melalui menu Kelola Data.')
 
     if submenu == 'Kelola Data':
         st.title('Halaman Kelola Sentimen')
