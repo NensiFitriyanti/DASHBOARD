@@ -256,21 +256,10 @@ st.markdown("### Statistik Data Sentimen")
 
 col1, col2 = st.columns(2)
 
+# Box Statistik Total
 with col1:
     with st.container():
-        st.markdown(
-            """
-            <div style="
-                border:2px solid #ddd;
-                border-radius:10px;
-                padding:15px;
-                margin-bottom:20px;
-                background-color:#f9f9f9;">
-            """,
-            unsafe_allow_html=True
-        )
-
-        st.markdown("#### Jumlah Komentar per Hari")
+        st.markdown("**Statistik Total Data Sentimen**")
         stat_df = filtered.copy()
         stat_df['date'] = stat_df['published_at'].dt.date
         by_date = stat_df.groupby('date').size().reset_index(name='count')
@@ -279,32 +268,17 @@ with col1:
         ax.set_xlabel('Tanggal')
         ax.set_ylabel('Jumlah Komentar')
         plt.xticks(rotation=45)
-        st.pyplot(fig)
+        st.pyplot(fig)   # <- masih di dalam container
 
-        st.markdown("</div>", unsafe_allow_html=True)
-
+# Box Pie Chart
 with col2:
     with st.container():
-        st.markdown(
-            """
-            <div style="
-                border:2px solid #ddd;
-                border-radius:10px;
-                padding:15px;
-                margin-bottom:20px;
-                background-color:#f9f9f9;">
-            """,
-            unsafe_allow_html=True
-        )
-
-        st.markdown("#### Persentase Sentimen")
+        st.markdown("**Persentase Sentimen**")
         pie_df = pd.Series([pos_count, neu_count, neg_count], index=['Positif','Netral','Negatif'])
         fig2, ax2 = plt.subplots()
         pie_df.plot.pie(autopct='%1.1f%%', ax=ax2)
         ax2.set_ylabel('')
-        st.pyplot(fig2)
-
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.pyplot(fig2)  # <- juga di dalam container
 
     if submenu == 'Kelola Data':
         st.title('Halaman Kelola Sentimen')
