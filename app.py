@@ -9,6 +9,8 @@ from io import BytesIO
 import base64
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
 
 # CONFIG
 
@@ -180,11 +182,29 @@ if not st.session_state['authenticated']:
         if submitted:
             if check_credentials(username, password):
                 st.session_state['authenticated'] = True
-                st.rerun()  # ganti experimental_rerun ke rerun
+
+                # Ambil komentar pertama kali setelah login
+                if 'comments' not in st.session_state or not st.session_state['comments']:
+                    youtube_url = st.session_state.get('youtube_url', None)
+                    if youtube_url:
+                        video_id = extract_video_id(youtube_url)
+                        if video_id:
+                            api_key = st.secrets.get('YOUTUBE_API_KEY', os.getenv('YOUTUBE_API_KEY'))
+                            if api_key:
+                                youtube = load_youtube_client(api_key)
+                                st.session_state['comments'] = fetch_comments_for_video(youtube, video_id)
+                            else:
+                                st.session_state['comments'] = []
+                        else:
+                            st.session_state['comments'] = []
+                    else:
+                        st.session_state['comments'] = []
+
+                st.rerun()
             else:
                 st.error('Username atau password salah')
 
-    st.stop() 
+    st.stop()    
 
 # After login
 # Sidebar
@@ -205,6 +225,7 @@ if menu == 'Sentiment':
 
     if submenu == 'Dashboard':
         st.title('Dashboard Sentiment')
+
         # Filter controls
         colf1, colf2, colf3 = st.columns([1,1,1])
         with colf3:
@@ -320,10 +341,72 @@ if menu == 'Sentiment':
         else:
             st.info('Belum ada data. Silakan ambil data menggunakan tombol "Ambil data lagi dari daftar video" di atas.')
 
-    if submenu == 'Insight & Rekomendasi':
-        st.title('Insight & Rekomendasi')
-        st.markdown('### Insight')
-        st.info('Di sini akan ditampilkan insight hasil analisis sentimen terkait layanan SAMSAT. Contoh insight: trend negatif meningkat pada bulan X, topik komplain: lama proses, biaya, dll.')
-        st.markdown('### Rekomendasi')
-        st.success('Di sini akan ditampilkan rekomendasi operasional berdasarkan insight. Contoh rekomendasi: tambahkan layanan antrian online, perbaiki informasi biaya pada website, training CS, dll.')
-        st.write('Anda bisa mengedit teks rekomendasi ini sesuai kebutuhan instansi.')
+
+if submenu == 'Insight & Rekomendasi':
+    st.title('Insight & Rekomendasi')
+
+    df = st.session_state['df_comments']
+    if df.empty or 'label' not in df.columns:
+        st.info("Belum ada data komentar. Silakan ambil data dulu.")
+    else:
+        total = len(df)
+        pos_count = (df['label'] == 'Positif').sum()
+        neu_count = (df['label'] == 'Netral').sum()
+        neg_count = (df['label'] == 'Negatif').sum()
+
+        # Persentase
+        pos_pct = (pos_count / total * 100) if total > 0 else 0
+        neu_pct = (neu_count / total * 100) if total > 0 else 0
+        neg_pct = (neg_count / total * 100) if total > 0 else 0
+
+        # Fungsi kotak + wordcloud
+        def make_box_with_wc(title, count, pct, color, insight, rekomendasi, text_series):
+            st.markdown(
+                f"""
+                <div style="background:{color};padding:20px;border-radius:10px;color:white;margin-bottom:15px">
+                <h3>{title}</h3>
+                <p>Total: <b>{count}</b> komentar ({pct:.1f}%)</p>
+                <p>📊 Insight: {insight}</p>
+                <p>💡 Rekomendasi:<br>{rekomendasi}</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            # WordCloud
+            if count > 0:
+                wc_text = " ".join(text_series.dropna().astype(str))
+                wc = WordCloud(width=600, height=300, background_color="white").generate(wc_text)
+                fig, ax = plt.subplots(figsize=(6,3))
+                ax.imshow(wc, interpolation='bilinear')
+                ax.axis("off")
+                st.pyplot(fig)
+
+        # Logika insight & rekomendasi
+        if pos_pct > 40:
+            pos_insight = "Mayoritas komentar positif 🎉. Konten disukai audiens."
+            pos_rekomen = "Tingkatkan interaksi (balas komentar, adakan Q&A). Gunakan pola positif untuk konten berikutnya."
+        else:
+            pos_insight = "Komentar positif ada, tapi belum dominan."
+            pos_rekomen = "Coba perkuat bagian yang audiens sukai, perhatikan topik yang sering muncul."
+
+        if neu_pct > 50:
+            neu_insight = "Mayoritas komentar netral. Audiens cenderung pasif."
+            neu_rekomen = "Ajak penonton lebih aktif dengan pertanyaan/quiz. Dorong mereka memberi feedback."
+        else:
+            neu_insight = "Komentar netral cukup berimbang."
+            neu_rekomen = "Tetap jaga interaksi agar audiens tidak hanya pasif."
+
+        if neg_pct > 20:
+            neg_insight = "Komentar negatif cukup signifikan ⚠️."
+            neg_rekomen = "Evaluasi kualitas video & penyampaian. Perbaiki sesuai kritik audiens."
+        else:
+            neg_insight = "Komentar negatif rendah 👍."
+            neg_rekomen = "Tetap monitor agar tidak meningkat, tanggapi kritik dengan bijak."
+
+        # Tampilkan 3 kotak + wordcloud
+        make_box_with_wc("Sentimen Positif", pos_count, pos_pct, "#2ecc71",
+                         pos_insight, pos_rekomen, df[df['label']=="Positif"]['comment'])
+        make_box_with_wc("Sentimen Netral", neu_count, neu_pct, "#95a5a6",
+                         neu_insight, neu_rekomen, df[df['label']=="Netral"]['comment'])
+        make_box_with_wc("Sentimen Negatif", neg_count, neg_pct, "#e74c3c",
+                         neg_insight, neg_rekomen, df[df['label']=="Negatif"]['comment'])

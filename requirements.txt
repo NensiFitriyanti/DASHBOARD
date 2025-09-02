@@ -5,3 +5,4 @@ vaderSentiment
 google-api-python-client
 reportlab
 xlsxwriter
+wordcloud
