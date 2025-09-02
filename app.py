@@ -284,17 +284,33 @@ if menu == 'Sentiment':
                 st.download_button('Export PDF', data=df_to_pdf_bytes(st.session_state['df_comments']), file_name='sentimen.pdf')
             except Exception as e:
                 st.warning('Export PDF gagal (reportlab mungkin belum terpasang). PDF disabled.')
-        with colu3:
-            st.button('Filter Data')
+          
+        if "search_query" not in st.session_state:
+            st.session_state["search_query"] = ""
 
         df = st.session_state['df_comments']
         if not df.empty:
-            
-            q = st.text_input('Cari komentar (kata kunci)', value='')
+
+            # tombol refresh data
+            if st.button("Filter Data"):
+                st.session_state["search_query"] = ""  # kosongkan pencarian
+
+            # input cari komentar
+            q = st.text_input("Cari komentar (kata kunci)", value=st.session_state["search_query"])
+            st.session_state["search_query"] = q  # simpan hasil input
+
+            # filter data
             if q:
                 df_display = df[df['comment'].str.contains(q, case=False, na=False)]
             else:
                 df_display = df
+
+            # tampilkan tabel
+            st.dataframe(
+                df_display[['author','comment','label','published_at']]
+                .sort_values(by='published_at', ascending=False)
+                .reset_index(drop=True)
+            )
 
             df_display = df_display[['author','comment','label','published_at']] \
                 .sort_values(by='published_at', ascending=False) \
