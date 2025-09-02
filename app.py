@@ -304,11 +304,10 @@ if menu == 'Sentiment':
             else:
                 df_display = df
 
-            st.dataframe(
-    df_display[['author','comment','label','published_at']]\
-    .sort_values(by='published_at', ascending=False)\
-    .reset_index(drop=True)
-)
+            df_display = df_display[['author','comment','label','published_at']] \
+                .sort_values(by='published_at', ascending=False) \
+                .reset_index(drop=True)
+
             df_display.index = df_display.index + 1
             df_display = df_display.rename_axis("No").reset_index()
 
@@ -317,7 +316,7 @@ if menu == 'Sentiment':
             # Delete row
             index_to_delete = st.number_input('Nomor baris untuk dihapus (index)', min_value=0, max_value=len(df_display)-1 if len(df_display)>0 else 0, value=0)
             if st.button('Hapus baris yang dipilih'):
-                # map displayed index to actual index
+
                 try:
                     actual_index = df_display.index[index_to_delete]
                     df = df.drop(actual_index)
