@@ -251,6 +251,10 @@ if menu == 'Sentiment':
                 st.markdown(f"<div style='background:#ecf0f1;padding:20px;border-radius:6px;color:#333;text-align:center'><h3>\U0001F610<br>Sentimen Netral</h3><h2>{neu_count}</h2></div>", unsafe_allow_html=True)
             with c3:
                 st.markdown(f"<div style='background:#e74c3c;padding:20px;border-radius:6px;color:white;text-align:center'><h3>\U0001F61E<br>Sentimen Negatif</h3><h2>{neg_count}</h2></div>", unsafe_allow_html=True)
+
+# Bagi tampilan
+col1, col2 = st.columns(2)
+
 # Box Statistik Total
 with col1:
     if not filtered.empty:
