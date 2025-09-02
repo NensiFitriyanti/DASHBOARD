@@ -320,28 +320,33 @@ if menu == 'Sentiment':
             if st.button('Filter Data'):
                 st.info('Gunakan kolom search untuk mencari teks pada komentar')
 
-        df = st.session_state['df_comments']
-        if not df.empty:
-            # search
-            q = st.text_input('Cari komentar (kata kunci)', value='')
-            if q:
-                df_display = df[df['comment'].str.contains(q, case=False, na=False)]
-            else:
-                df_display = df
+        df = st.session_state.get('df_comments', pd.DataFrame(columns=['author','comment','published_at','label']))
 
-            st.dataframe(df_display[['author','comment','label','published_at']].sort_values(by='published_at', ascending=False))
+if df.empty:
+    st.info('Belum ada data komentar. Silakan ambil data dulu.')
+else:
+    # search
+    q = st.text_input('Cari komentar (kata kunci)', value='')
+    if q:
+        df_display = df[df['comment'].astype(str).str.contains(q, case=False, na=False)]
+    else:
+        df_display = df
 
-            # Delete row
-            index_to_delete = st.number_input('Nomor baris untuk dihapus (index)', min_value=0, max_value=len(df_display)-1 if len(df_display)>0 else 0, value=0)
-            if st.button('Hapus baris yang dipilih'):
-                # map displayed index to actual index
-                try:
-                    actual_index = df_display.index[index_to_delete]
-                    df = df.drop(actual_index)
-                    st.session_state['df_comments'] = df.reset_index(drop=True)
-                    st.success('Baris dihapus')
-                except Exception as e:
-                    st.error('Gagal menghapus: ' + str(e))
+    # Tampilkan tabel
+    st.dataframe(df_display[['author','comment','label','published_at']].sort_values(by='published_at', ascending=False))
+
+    # Delete row
+    index_to_delete = st.number_input('Nomor baris untuk dihapus (index)', min_value=0,
+                                      max_value=len(df_display)-1 if len(df_display)>0 else 0, value=0)
+    if st.button('Hapus baris yang dipilih'):
+        try:
+            actual_index = df_display.index[index_to_delete]
+            df = df.drop(actual_index)
+            st.session_state['df_comments'] = df.reset_index(drop=True)
+            st.success('Baris dihapus')
+        except Exception as e:
+            st.error('Gagal menghapus: ' + str(e))
+
         else:
             st.info('Belum ada data. Silakan ambil data menggunakan tombol "Ambil data lagi dari daftar video" di atas.')
 
