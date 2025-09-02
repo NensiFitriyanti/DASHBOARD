@@ -94,9 +94,15 @@ def analyze_sentiments(df: pd.DataFrame):
 
 def df_to_excel_bytes(df: pd.DataFrame) -> bytes:
     output = BytesIO()
+
+    # Konversi semua nilai yang bukan tipe dasar menjadi string
+    df_clean = df.copy().applymap(
+        lambda x: x if isinstance(x, (str, int, float, bool, type(None), pd.Timestamp)) else str(x)
+    )
+
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Sentimen')
-        writer.save()
+        df_clean.to_excel(writer, index=False, sheet_name='Sentimen')
+
     return output.getvalue()
 
 
