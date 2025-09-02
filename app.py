@@ -10,17 +10,6 @@ import base64
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
-# ---------------------------
-# CONFIG
-# ---------------------------
-# Expected files in app folder:
-# - adminpicture (e.g. adminpicture.png)\# - logo_voxmeter (e.g. logo_voxmeter.png)
-
-# Expected secrets / env vars:
-# - APP_USER (username)
-# - APP_PASS (password)
-# - YOUTUBE_API_KEY (YouTube Data API v3 key)
-
 st.set_page_config(page_title="VoxMeter Dashboard", layout="wide")
 
 LOGO_FILE = "logo_voxmeter.png"
@@ -102,11 +91,14 @@ def analyze_sentiments(df: pd.DataFrame):
 
 
 def df_to_excel_bytes(df: pd.DataFrame) -> bytes:
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Sentimen')
-        writer.save()
-    return output.getvalue()
+    buffer = io.BytesIO()
+    # pastikan semua nilai dikonversi ke string agar tidak error
+    df_clean = df.astype(str)
+
+    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+        df_clean.to_excel(writer, index=False, sheet_name='Sentimen')
+    buffer.seek(0)
+    return buffer.getvalue()
 
 
 def df_to_csv_bytes(df: pd.DataFrame) -> bytes:
