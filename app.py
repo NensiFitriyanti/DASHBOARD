@@ -5,6 +5,7 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from googleapiclient.discovery import build
 from datetime import datetime
 import os
+import io
 from io import BytesIO
 import base64
 from reportlab.lib.pagesizes import letter
