@@ -304,7 +304,13 @@ if menu == 'Sentiment':
             else:
                 df_display = df
 
-            st.dataframe(df_display[['author','comment','label','published_at']].sort_values(by='published_at', ascending=False))
+            st.dataframe(
+    df_display[['author','comment','label','published_at']]
+    .sort_values(by='published_at', ascending=False)
+    .reset_index(drop=True)
+    .reset_index()
+    .rename(columns={'index': 'No'})
+)
 
             # Delete row
             index_to_delete = st.number_input('Nomor baris untuk dihapus (index)', min_value=0, max_value=len(df_display)-1 if len(df_display)>0 else 0, value=0)
