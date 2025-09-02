@@ -176,12 +176,13 @@ if not st.session_state['authenticated']:
             username = st.text_input('Username')
             password = st.text_input('Password', type='password')
             submitted = st.form_submit_button('Log In')
-            if submitted:
-                if check_credentials(username, password):
-                    st.session_state['authenticated'] = True
-                    st.experimental_rerun()
-                else:
-                    st.error('Username atau password salah')
+if submitted:
+    if check_credentials(username, password):
+        st.session_state['authenticated'] = True
+        st.rerun()
+    else:
+        st.error('Username atau password salah')
+
     st.stop()
 
 # After login
@@ -193,7 +194,7 @@ menu = st.sidebar.radio("MENU", ["Sentiment", "Logout"])
 if menu == 'Logout':
     if st.button('Logout sekarang'):
         st.session_state['authenticated'] = False
-        st.experimental_rerun()
+        st.rerun()
 
 if menu == 'Sentiment':
     submenu = st.sidebar.selectbox('Menu Sentiment', ['Dashboard', 'Kelola Data', 'Insight & Rekomendasi'])
