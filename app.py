@@ -1,3 +1,4 @@
+import re
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -402,23 +403,18 @@ if submenu == 'Insight & Rekomendasi':
                          neg_insight, neg_rekomen, df[df['label']=="Negatif"]['comment'])
 
 # ================= TOP 5 KATA =================
-all_text = " ".join(df['comment'].dropna().astype(str))
+all_text = " ".join(df['comment'].dropna().astype(str).tolist())
+words = re.findall(r'\w+', all_text.lower())   # tokenisasi sederhana
+top5 = Counter(words).most_common(5)
 
-words = re.findall(r'\w+', all_text.lower())
-
-word_counts = Counter(words)
-top5 = word_counts.most_common(5)
-
-st.markdown(
-    """
-    <div style="background:#34495e;padding:20px;border-radius:10px;color:white;margin-top:20px">
-    <h3>🔝 5 Kata Paling Sering Muncul</h3>
-    <ul>
-    """ +
-    "".join([f"<li><b>{w}</b> → {c} kali</li>" for w, c in top5]) +
-    """
-    </ul>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+if top5:
+    st.markdown(
+        """
+        <div style="background:#34495e;padding:20px;border-radius:10px;color:white;margin-top:20px">
+        <h3>🔝 5 Kata Paling Sering Muncul (Semua Komentar)</h3>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    for w, c in top5:
+        st.write(f"➡️ **{w}** : {c} kali")
