@@ -190,32 +190,31 @@ if not st.session_state['authenticated']:
             password = st.text_input('Password', type='password')
             submitted = st.form_submit_button('Log In')
 
-if submitted:
-    if check_credentials(username, password):
-        st.session_state['authenticated'] = True
+        if submitted:
+            if check_credentials(username, password):
+                st.session_state['authenticated'] = True
 
-        # Ambil komentar otomatis dari daftar video
-        if 'df_comments' not in st.session_state or st.session_state['df_comments'].empty:
-            api_key = st.secrets.get('YOUTUBE_API_KEY', os.getenv('YOUTUBE_API_KEY'))
-            if api_key:
-                youtube = load_youtube_client(api_key)
-                all_comments = []
-                for link in VIDEO_LINKS:
-                    vid = extract_video_id(link)
-                    all_comments.extend(fetch_comments_for_video(youtube, vid))
-                if all_comments:
-                    df_new = pd.DataFrame(all_comments)
-                    df_new['published_at'] = pd.to_datetime(df_new['published_at'], errors='coerce')
-                    df_new = analyze_sentiments(df_new)
-                    st.session_state['df_comments'] = df_new
-                else:
-                    st.session_state['df_comments'] = pd.DataFrame(columns=['comment','author','published_at','label'])
+                # Ambil komentar pertama kali setelah login
+                if 'comments' not in st.session_state or not st.session_state['comments']:
+                    youtube_url = st.session_state.get('youtube_url', None)
+                    if youtube_url:
+                        video_id = extract_video_id(youtube_url)
+                        if video_id:
+                            api_key = st.secrets.get('YOUTUBE_API_KEY', os.getenv('YOUTUBE_API_KEY'))
+                            if api_key:
+                                youtube = load_youtube_client(api_key)
+                                st.session_state['comments'] = fetch_comments_for_video(youtube, video_id)
+                            else:
+                                st.session_state['comments'] = []
+                        else:
+                            st.session_state['comments'] = []
+                    else:
+                        st.session_state['comments'] = []
+
+                st.rerun()
             else:
-                st.session_state['df_comments'] = pd.DataFrame(columns=['comment','author','published_at','label'])
+                st.error('Username atau password salah')
 
-        st.rerun()
-    else:
-        st.error('Username atau password salah')
     st.stop()
 
 # After login
@@ -289,30 +288,63 @@ if menu == 'Sentiment':
         else:
             st.info('Belum ada data komentar. Silakan ambil data melalui menu Kelola Data.')
 
-if submenu == 'Kelola Data':
-    st.title('Halaman Kelola Sentimen')
+    if submenu == 'Kelola Data':
+        st.title('Halaman Kelola Sentimen')
+        colu1, colu2, colu3 = st.columns([1,1,1])
+        with colu1:
+            if st.button('Ambil data lagi dari daftar video'):
+                api_key = None
+                if 'YOUTUBE_API_KEY' in st.secrets:
+                    api_key = st.secrets['YOUTUBE_API_KEY']
+                else:
+                    api_key = os.getenv('YOUTUBE_API_KEY')
+                if not api_key:
+                    st.error('API Key YouTube belum diset di Streamlit secrets atau .env')
+                else:
+                    youtube = load_youtube_client(api_key)
+                    all_comments = []
+                    for link in VIDEO_LINKS:
+                        vid = extract_video_id(link)
+                        st.info(f'Mengambil komentar video {vid} ...')
+                        c = fetch_comments_for_video(youtube, vid)
+                        all_comments.extend(c)
+                    if all_comments:
+                        df_new = pd.DataFrame(all_comments)
+                        df_new['published_at'] = pd.to_datetime(df_new['published_at'])
+                        df_new = analyze_sentiments(df_new)
+                        st.session_state['df_comments'] = df_new
+                        st.success(f'Berhasil mengambil {len(df_new)} komentar')
+        with colu2:
+            st.download_button('Export CSV', data=df_to_csv_bytes(st.session_state['df_comments']), file_name='sentimen.csv')
+            st.download_button('Export Excel', data=df_to_excel_bytes(st.session_state['df_comments']), file_name='sentimen.xlsx')
+            try:
+                st.download_button('Export PDF', data=df_to_pdf_bytes(st.session_state['df_comments']), file_name='sentimen.pdf')
+            except Exception as e:
+                st.warning('Export PDF gagal (reportlab mungkin belum terpasang). PDF disabled.')
+        with colu3:
+            st.write('Filter Data')
+            q = st.text_input('Search...')
+            if st.button('Filter Data'):
+                st.info('Gunakan kolom search untuk mencari teks pada komentar')
 
-    # Ambil dataframe komentar
-    df = st.session_state.get('df_comments', pd.DataFrame(columns=['author','comment','published_at','label']))
+        df = st.session_state.get('df_comments', pd.DataFrame(columns=['author','comment','published_at','label']))
 
-    # Tombol unduh CSV
-    if not df.empty:
-        csv_data = df.to_csv(index=False).encode('utf-8')
-        st.download_button('Unduh CSV', data=csv_data, file_name='komentar_sentimen.csv', mime='text/csv')
-
-    # Search komentar
-    search_query = st.text_input('Cari komentar...')
-    if search_query:
-        df_display = df[df['comment'].astype(str).str.contains(search_query, case=False, na=False)]
+if df.empty:
+    st.info('Belum ada data komentar. Silakan ambil data dulu.')
+else:
+    # search
+    q = st.text_input('Cari komentar (kata kunci)', value='')
+    if q:
+        df_display = df[df['comment'].astype(str).str.contains(q, case=False, na=False)]
     else:
         df_display = df
 
     # Tampilkan tabel
     st.dataframe(df_display[['author','comment','label','published_at']].sort_values(by='published_at', ascending=False))
 
-    # Delete per baris
+    # Delete row
     index_to_delete = st.number_input('Nomor baris untuk dihapus (index)', min_value=0,
-                                      max_value=len(df_display)-1 if len(df_display)>0 else 0, value=0)
+        max_value=len(df_display)-1 if len(df_display)>0 else 0, value=0)
     if st.button('Hapus baris yang dipilih'):
         try:
             actual_index = df_display.index[index_to_delete]
