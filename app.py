@@ -10,19 +10,18 @@ from io import BytesIO
 import base64
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+from collections import Counter
 
 st.set_page_config(page_title="VoxMeter Dashboard", layout="wide")
 
 LOGO_FILE = "logo_voxmeter.png"
 ADMIN_PIC = "adminpicture.png"
 
-# ---------------------------
-# Utility functions
-# ---------------------------
 
 def load_youtube_client(api_key: str):
     return build('youtube', 'v3', developerKey=api_key)
-
 
 def extract_video_id(url: str):
 
@@ -91,7 +90,6 @@ def analyze_sentiments(df: pd.DataFrame):
 
 def df_to_excel_bytes(df: pd.DataFrame) -> bytes:
     buffer = io.BytesIO()
-    # pastikan semua nilai dikonversi ke string agar tidak error
     df_clean = df.astype(str)
 
     with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
@@ -103,7 +101,6 @@ def df_to_csv_bytes(df: pd.DataFrame) -> bytes:
     return df.to_csv(index=False).encode('utf-8')
 
 def df_to_pdf_bytes(df: pd.DataFrame) -> bytes:
-    # Simple PDF generation using reportlab (plain table-ish)
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
@@ -120,9 +117,6 @@ def df_to_pdf_bytes(df: pd.DataFrame) -> bytes:
     buffer.seek(0)
     return buffer.read()
 
-# ---------------------------
-# Predefined video links
-# ---------------------------
 VIDEO_LINKS = [
     "https://youtu.be/Ugfjq0rDz8g?si=vWNO6nEAj9XB2LOB",
     "https://youtu.be/Lr1OHmBpwjw?si=9Mvu8o69V8Zt40yn",
@@ -139,12 +133,8 @@ VIDEO_LINKS = [
     "https://youtu.be/xvHiRY7skIk?si=nzAUYB71fQpLD2lv",
 ]
 
-# ---------------------------
-# Authentication
-# ---------------------------
-
+# =========== membaca api , user, psww =============
 def check_credentials(user, pwd):
-    # Prefer secrets: STREAMLIT secrets or environment variables
     expected_user = None
     expected_pass = None
     if 'APP_USER' in st.secrets:
@@ -157,14 +147,12 @@ def check_credentials(user, pwd):
         expected_pass = os.getenv('APP_PASS')
     return (user == expected_user) and (pwd == expected_pass)
 
-# ---------------------------
-# Main UI
-# ---------------------------
+
+# ======== tampilan login =========
 
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 
-# Login page
 if not st.session_state['authenticated']:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -182,7 +170,7 @@ if not st.session_state['authenticated']:
                     st.error('Username atau password salah')
     st.stop()
 
-# Sidebar
+# ========= tampilan dahboard ========
 st.sidebar.image(ADMIN_PIC, width=80)
 st.sidebar.markdown("**Administrator**")
 menu = st.sidebar.radio("MENU", ["Sentiment", "Logout"]) 
@@ -278,6 +266,8 @@ if menu == 'Sentiment':
                         st.session_state['df_comments'] = df_new
                         st.success(f'Berhasil mengambil {len(df_new)} komentar')
                 with colu2:
+
+ #   ======= button download ========
                     col1, col2, col3 = st.columns(3)
 
                     with col1:
@@ -331,7 +321,6 @@ if menu == 'Sentiment':
 
             st.dataframe(df_display)
 
-            # Delete row
             index_to_delete = st.number_input('Nomor baris untuk dihapus (index)', min_value=0, max_value=len(df_display)-1 if len(df_display)>0 else 0, value=0)
             if st.button('Hapus baris yang dipilih'):
 
@@ -345,10 +334,91 @@ if menu == 'Sentiment':
         else:
             st.info('Belum ada data. Silakan ambil data menggunakan tombol "Ambil data lagi dari daftar video" di atas.')
 
-    if submenu == 'Insight & Rekomendasi':
-        st.title('Insight & Rekomendasi')
-        st.markdown('### Insight')
-        st.info('Di sini akan ditampilkan insight hasil analisis sentimen terkait layanan SAMSAT. Contoh insight: trend negatif meningkat pada bulan X, topik komplain: lama proses, biaya, dll.')
-        st.markdown('### Rekomendasi')
-        st.success('Di sini akan ditampilkan rekomendasi operasional berdasarkan insight. Contoh rekomendasi: tambahkan layanan antrian online, perbaiki informasi biaya pada website, training CS, dll.')
-        st.write('Anda bisa mengedit teks rekomendasi ini sesuai kebutuhan instansi.')
+# =========== insight & rekomendasi =============
+if submenu == 'Insight & Rekomendasi':
+    st.title('Insight & Rekomendasi')
+
+    df = st.session_state['df_comments']
+    if df.empty or 'label' not in df.columns:
+        st.info("Belum ada data komentar. Silakan ambil data dulu.")
+    else:
+        total = len(df)
+        pos_count = (df['label'] == 'Positif').sum()
+        neu_count = (df['label'] == 'Netral').sum()
+        neg_count = (df['label'] == 'Negatif').sum()
+
+        pos_pct = (pos_count / total * 100) if total > 0 else 0
+        neu_pct = (neu_count / total * 100) if total > 0 else 0
+        neg_pct = (neg_count / total * 100) if total > 0 else 0
+
+        def make_box_with_wc(title, count, pct, color, insight, rekomendasi, text_series):
+            st.markdown(
+                f"""
+                <div style="background:{color};padding:20px;border-radius:10px;color:white;margin-bottom:15px">
+                <h3>{title}</h3>
+                <p>Total: <b>{count}</b> komentar ({pct:.1f}%)</p>
+                <p>📊 Insight: {insight}</p>
+                <p>💡 Rekomendasi:<br>{rekomendasi}</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            # WordCloud
+            if count > 0:
+                wc_text = " ".join(text_series.dropna().astype(str))
+                wc = WordCloud(width=600, height=300, background_color="white").generate(wc_text)
+                fig, ax = plt.subplots(figsize=(6,3))
+                ax.imshow(wc, interpolation='bilinear')
+                ax.axis("off")
+                st.pyplot(fig)
+
+        # Logika insight & rekomendasi
+        if pos_pct > 40:
+            pos_insight = "Mayoritas komentar positif 🎉. Konten disukai audiens."
+            pos_rekomen = "Tingkatkan interaksi (balas komentar, adakan Q&A). Gunakan pola positif untuk konten berikutnya."
+        else:
+            pos_insight = "Komentar positif ada, tapi belum dominan."
+            pos_rekomen = "Coba perkuat bagian yang audiens sukai, perhatikan topik yang sering muncul."
+
+        if neu_pct > 50:
+            neu_insight = "Mayoritas komentar netral. Audiens cenderung pasif."
+            neu_rekomen = "Ajak penonton lebih aktif dengan pertanyaan/quiz. Dorong mereka memberi feedback."
+        else:
+            neu_insight = "Komentar netral cukup berimbang."
+            neu_rekomen = "Tetap jaga interaksi agar audiens tidak hanya pasif."
+
+        if neg_pct > 20:
+            neg_insight = "Komentar negatif cukup signifikan ⚠️."
+            neg_rekomen = "Evaluasi kualitas video & penyampaian. Perbaiki sesuai kritik audiens."
+        else:
+            neg_insight = "Komentar negatif rendah 👍."
+            neg_rekomen = "Tetap monitor agar tidak meningkat, tanggapi kritik dengan bijak."
+
+        make_box_with_wc("Sentimen Positif", pos_count, pos_pct, "#2ecc71",
+                         pos_insight, pos_rekomen, df[df['label']=="Positif"]['comment'])
+        make_box_with_wc("Sentimen Netral", neu_count, neu_pct, "#95a5a6",
+                         neu_insight, neu_rekomen, df[df['label']=="Netral"]['comment'])
+        make_box_with_wc("Sentimen Negatif", neg_count, neg_pct, "#e74c3c",
+                         neg_insight, neg_rekomen, df[df['label']=="Negatif"]['comment'])
+
+# ================= TOP 5 KATA =================
+all_text = " ".join(df['comment'].dropna().astype(str))
+
+words = re.findall(r'\w+', all_text.lower())
+
+word_counts = Counter(words)
+top5 = word_counts.most_common(5)
+
+st.markdown(
+    """
+    <div style="background:#34495e;padding:20px;border-radius:10px;color:white;margin-top:20px">
+    <h3>🔝 5 Kata Paling Sering Muncul</h3>
+    <ul>
+    """ +
+    "".join([f"<li><b>{w}</b> → {c} kali</li>" for w, c in top5]) +
+    """
+    </ul>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
