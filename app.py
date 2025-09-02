@@ -299,7 +299,7 @@ with col2:
     pie_df.plot.pie(autopct='%1.1f%%', ax=ax2)
     ax2.set_ylabel('')
     st.pyplot(fig2)
-
+    
     st.markdown("</div>", unsafe_allow_html=True)
 
     if submenu == 'Kelola Data':
