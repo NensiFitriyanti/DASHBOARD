@@ -9,8 +9,6 @@ from io import BytesIO
 import base64
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-from wordcloud import WordCloud
-import matplotlib.pyplot as plt
 
 # CONFIG
 
@@ -93,11 +91,14 @@ def analyze_sentiments(df: pd.DataFrame):
     s_df = pd.DataFrame(sentiments)
     return pd.concat([df.reset_index(drop=True), s_df], axis=1)
 
-def df_to_excel_bytes(df):
-    output = io.BytesIO()
+
+def df_to_excel_bytes(df: pd.DataFrame) -> bytes:
+    output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Sheet1')
+        df.to_excel(writer, index=False, sheet_name='Sentimen')
+        writer.save()
     return output.getvalue()
+
 
 def df_to_csv_bytes(df: pd.DataFrame) -> bytes:
     return df.to_csv(index=False).encode('utf-8')
@@ -180,7 +181,6 @@ if not st.session_state['authenticated']:
             if check_credentials(username, password):
                 st.session_state['authenticated'] = True
 
-                # Ambil komentar pertama kali setelah login
                 if 'comments' not in st.session_state or not st.session_state['comments']:
                     youtube_url = st.session_state.get('youtube_url', None)
                     if youtube_url:
@@ -201,7 +201,7 @@ if not st.session_state['authenticated']:
             else:
                 st.error('Username atau password salah')
 
-    st.stop()    
+    st.stop()
 
 # After login
 # Sidebar
@@ -220,92 +220,59 @@ if menu == 'Sentiment':
     if 'df_comments' not in st.session_state:
         st.session_state['df_comments'] = pd.DataFrame(columns=['comment','author','published_at'])
 
-if submenu == 'Dashboard':
-    st.title('Dashboard Sentiment')
+    if submenu == 'Dashboard':
+        st.title('Dashboard Sentiment')
+        
+        # Filter controls
+        colf1, colf2, colf3 = st.columns([1,1,1])
+        with colf3:
+            st.markdown('')
+            date_filter = st.checkbox('Tampilkan tanpa filter', value=True)
+            selected_month = st.selectbox('Bulan', options=['All']+[str(i) for i in range(1,13)])
+            selected_year = st.selectbox('Tahun', options=['All']+list(map(str, range(2020, datetime.now().year+1))))
 
-    # Filter controls
-    colf1, colf2, colf3 = st.columns([1,1,1])
-    with colf3:
-        st.markdown('')
-        date_filter = st.checkbox('Tampilkan tanpa filter', value=True)
-        selected_month = st.selectbox('Bulan', options=['All']+[str(i) for i in range(1,13)])
-        selected_year = st.selectbox('Tahun', options=['All']+list(map(str, range(2020, datetime.now().year+1))))
+        df = st.session_state['df_comments']
+        if not df.empty and 'label' in df.columns:
+            filtered = df.copy()
+            if not date_filter:
+                if selected_month != 'All':
+                    filtered = filtered[filtered['published_at'].apply(lambda x: x.month)==int(selected_month)]
+                if selected_year != 'All':
+                    filtered = filtered[filtered['published_at'].apply(lambda x: x.year)==int(selected_year)]
 
-    df = st.session_state['df_comments']
-    if not df.empty and 'label' in df.columns:
-        filtered = df.copy()
-        if not date_filter:
-            if selected_month != 'All':
-                filtered = filtered[filtered['published_at'].apply(lambda x: x.month)==int(selected_month)]
-            if selected_year != 'All':
-                filtered = filtered[filtered['published_at'].apply(lambda x: x.year)==int(selected_year)]
+            pos_count = (filtered['label']=='Positif').sum()
+            neu_count = (filtered['label']=='Netral').sum()
+            neg_count = (filtered['label']=='Negatif').sum()
 
-        pos_count = (filtered['label']=='Positif').sum()
-        neu_count = (filtered['label']=='Netral').sum()
-        neg_count = (filtered['label']=='Negatif').sum()
+            c1, c2, c3 = st.columns([1,1,1])
+            with c1:
+                st.markdown(f"<div style='background:#2ecc71;padding:20px;border-radius:6px;color:white;text-align:center'><h3>\U0001F600<br>Sentimen Positif</h3><h2>{pos_count}</h2></div>", unsafe_allow_html=True)
+            with c2:
+                st.markdown(f"<div style='background:#ecf0f1;padding:20px;border-radius:6px;color:#333;text-align:center'><h3>\U0001F610<br>Sentimen Netral</h3><h2>{neu_count}</h2></div>", unsafe_allow_html=True)
+            with c3:
+                st.markdown(f"<div style='background:#e74c3c;padding:20px;border-radius:6px;color:white;text-align:center'><h3>\U0001F61E<br>Sentimen Negatif</h3><h2>{neg_count}</h2></div>", unsafe_allow_html=True)
 
-        # Kotak jumlah
-        c1, c2, c3 = st.columns([1,1,1])
-        with c1:
-            st.markdown(f"<div style='background:#2ecc71;padding:20px;border-radius:6px;color:white;text-align:center'><h3>\U0001F600<br>Sentimen Positif</h3><h2>{pos_count}</h2></div>", unsafe_allow_html=True)
-        with c2:
-            st.markdown(f"<div style='background:#ecf0f1;padding:20px;border-radius:6px;color:#333;text-align:center'><h3>\U0001F610<br>Sentimen Netral</h3><h2>{neu_count}</h2></div>", unsafe_allow_html=True)
-        with c3:
-            st.markdown(f"<div style='background:#e74c3c;padding:20px;border-radius:6px;color:white;text-align:center'><h3>\U0001F61E<br>Sentimen Negatif</h3><h2>{neg_count}</h2></div>", unsafe_allow_html=True)
+            # Statistik per hari
+            st.markdown('### Statistik Total Data Sentimen')
+            stat_df = filtered.copy()
+            stat_df['date'] = stat_df['published_at'].dt.date
+            by_date = stat_df.groupby('date').size().reset_index(name='count')
+            fig, ax = plt.subplots()
+            ax.plot(by_date['date'], by_date['count'], marker='o')
+            ax.set_xlabel('Tanggal')
+            ax.set_ylabel('Jumlah Komentar')
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
 
-        # ---------------------------
-        # Statistik Data Sentimen
-        # ---------------------------
-        st.markdown("### Statistik Data Sentimen")
-        col1, col2 = st.columns(2)
-
-        # Grafik line jumlah komentar per tanggal
-        with col1:
-            with st.container():
-                st.markdown(
-                    """
-                    <div style="background-color:#f5f5f5; border:1px solid #ddd;
-                                padding:15px; border-radius:10px;
-                                box-shadow:2px 2px 6px rgba(0,0,0,0.1);">
-                    <h4>Statistik Total Data Sentimen</h4>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-                stat_df = filtered.copy()
-                stat_df['date'] = stat_df['published_at'].dt.date
-                by_date = stat_df.groupby('date').size().reset_index(name='count')
-
-                fig, ax = plt.subplots()
-                ax.plot(by_date['date'], by_date['count'], marker='o')
-                ax.set_xlabel('Tanggal')
-                ax.set_ylabel('Jumlah Komentar')
-                plt.xticks(rotation=45)
-                st.pyplot(fig)
-
-                st.markdown("</div>", unsafe_allow_html=True)
-
-        # Grafik pie chart sentimen
-        with col2:
-            with st.container():
-                st.markdown(
-                    """
-                    <div style="background-color:#f5f5f5; border:1px solid #ddd;
-                                padding:15px; border-radius:10px;
-                                box-shadow:2px 2px 6px rgba(0,0,0,0.1);">
-                    <h4>Persentase Sentimen</h4>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-                pie_df = pd.Series([pos_count, neu_count, neg_count],
-                                   index=['Positif','Netral','Negatif'])
-                fig2, ax2 = plt.subplots()
-                pie_df.plot.pie(autopct='%1.1f%%', ax=ax2)
-                ax2.set_ylabel('')
-                st.pyplot(fig2)
-
-                st.markdown("</div>", unsafe_allow_html=True)
+            # Pie chart
+            st.markdown('### Persentase Sentimen')
+            pie_df = pd.Series([pos_count, neu_count, neg_count], index=['Positif','Netral','Negatif'])
+            fig2, ax2 = plt.subplots()
+            pie_df.plot.pie(y='count', autopct='%1.1f%%', ax=ax2)
+            ax2.set_ylabel('')
+            st.pyplot(fig2)
+        else:
+            st.info('Belum ada data komentar. Silakan ambil data melalui menu Kelola Data.')
 
     if submenu == 'Kelola Data':
         st.title('Halaman Kelola Sentimen')
@@ -371,6 +338,8 @@ if submenu == 'Dashboard':
         else:
             st.info('Belum ada data. Silakan ambil data menggunakan tombol "Ambil data lagi dari daftar video" di atas.')
 
+    from wordcloud import WordCloud
+import matplotlib.pyplot as plt
 
 if submenu == 'Insight & Rekomendasi':
     st.title('Insight & Rekomendasi')
