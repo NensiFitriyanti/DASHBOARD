@@ -3,9 +3,5 @@ pandas
 matplotlib
 vaderSentiment
 google-api-python-client
-python-dotenv
-openpyxl
 reportlab
-BytesIO
-colors
-letter
+xlsxwriter
