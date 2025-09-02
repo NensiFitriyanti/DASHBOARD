@@ -305,8 +305,8 @@ if menu == 'Sentiment':
                 df_display = df
 
             st.dataframe(
-    df_display[['author','comment','label','published_at']]
-    .sort_values(by='published_at', ascending=False)
+    df_display[['author','comment','label','published_at']]\
+    .sort_values(by='published_at', ascending=False)\
     .reset_index(drop=True)
 )
             df_display.index = df_display.index + 1
