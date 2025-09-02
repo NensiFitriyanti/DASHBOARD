@@ -277,13 +277,33 @@ if menu == 'Sentiment':
                         df_new = analyze_sentiments(df_new)
                         st.session_state['df_comments'] = df_new
                         st.success(f'Berhasil mengambil {len(df_new)} komentar')
-        with colu2:
-            st.download_button('Export CSV', data=df_to_csv_bytes(st.session_state['df_comments']), file_name='sentimen.csv')
-            st.download_button('Export Excel', data=df_to_excel_bytes(st.session_state['df_comments']), file_name='sentimen.xlsx')
-            try:
-                st.download_button('Export PDF', data=df_to_pdf_bytes(st.session_state['df_comments']), file_name='sentimen.pdf')
-            except Exception as e:
-                st.warning('Export PDF gagal (reportlab mungkin belum terpasang). PDF disabled.')
+                with colu2:
+                    col1, col2, col3 = st.columns(3)
+
+                    with col1:
+                        st.download_button(
+                            'Export CSV',
+                            data=df_to_csv_bytes(st.session_state['df_comments']),
+                            file_name='sentimen.csv'
+                        )
+
+                    with col2:
+                        st.download_button(
+                            'Export Excel',
+                            data=df_to_excel_bytes(st.session_state['df_comments']),
+                            file_name='sentimen.xlsx'
+                        )
+
+                    with col3:
+                        try:
+                            st.download_button(
+                                'Export PDF',
+                                data=df_to_pdf_bytes(st.session_state['df_comments']),
+                                file_name='sentimen.pdf'
+                            )
+                        except Exception as e:
+                            st.warning('Export PDF gagal (reportlab mungkin belum terpasang). PDF disabled.')
+
           
         if "search_query" not in st.session_state:
             st.session_state["search_query"] = ""
@@ -291,7 +311,7 @@ if menu == 'Sentiment':
         df = st.session_state['df_comments']
         if not df.empty:
 
-            if st.button("Filter Data"):
+            if st.button("Refresh"):
                 st.session_state["search_query"] = "" 
 
             q = st.text_input("Cari komentar (kata kunci)", value=st.session_state["search_query"])
