@@ -176,14 +176,15 @@ if not st.session_state['authenticated']:
             username = st.text_input('Username')
             password = st.text_input('Password', type='password')
             submitted = st.form_submit_button('Log In')
-if submitted:
-    if check_credentials(username, password):
-        st.session_state['authenticated'] = True
-        st.rerun()
-    else:
-        st.error('Username atau password salah')
 
-    st.stop()
+        if submitted:
+            if check_credentials(username, password):
+                st.session_state['authenticated'] = True
+                st.rerun()  # ganti experimental_rerun ke rerun
+            else:
+                st.error('Username atau password salah')
+
+    st.stop() 
 
 # After login
 # Sidebar
