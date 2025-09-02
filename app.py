@@ -91,27 +91,18 @@ def analyze_sentiments(df: pd.DataFrame):
     s_df = pd.DataFrame(sentiments)
     return pd.concat([df.reset_index(drop=True), s_df], axis=1)
 
-
 def df_to_excel_bytes(df: pd.DataFrame) -> bytes:
     output = BytesIO()
-    
     df_clean = df.copy()
-    
-    for col in df_clean.columns:
-       
-        if df_clean[col].dtype == 'O':
-           
-            if not pd.api.types.is_datetime64_any_dtype(df_clean[col]):
-                df_clean[col] = df_clean[col].apply(lambda x: str(x) if x is not None else "")
 
-        if pd.api.types.is_datetime64_any_dtype(df_clean[col]):
-            df_clean[col] = pd.to_datetime(df_clean[col], errors='coerce')
+    for col in df_clean.columns:
+        if not pd.api.types.is_datetime64_any_dtype(df_clean[col]):
+            df_clean[col] = df_clean[col].astype(str)
 
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df_clean.to_excel(writer, index=False, sheet_name='Sentimen')
 
     return output.getvalue()
-
 
 def df_to_csv_bytes(df: pd.DataFrame) -> bytes:
     return df.to_csv(index=False).encode('utf-8')
@@ -310,10 +301,14 @@ if menu == 'Sentiment':
                         all_comments.extend(c)
                     if all_comments:
                         df_new = pd.DataFrame(all_comments)
-                        df_new['published_at'] = pd.to_datetime(df_new['published_at'])
+                        df_new['published_at'] = pd.to_datetime(df_new['published_at'], errors='coerce')
+                        df_new['comment'] = df_new['comment'].fillna('').astype(str)
+                        df_new['author'] = df_new['author'].fillna('').astype(str)
+
                         df_new = analyze_sentiments(df_new)
                         st.session_state['df_comments'] = df_new
                         st.success(f'Berhasil mengambil {len(df_new)} komentar')
+
         with colu2:
             st.download_button('Export CSV', data=df_to_csv_bytes(st.session_state['df_comments']), file_name='sentimen.csv')
             st.download_button('Export Excel', data=df_to_excel_bytes(st.session_state['df_comments']), file_name='sentimen.xlsx')
@@ -327,22 +322,16 @@ if menu == 'Sentiment':
             if st.button('Filter Data'):
                 st.info('Gunakan kolom search untuk mencari teks pada komentar')
 
-        df = st.session_state.get('df_comments', pd.DataFrame(columns=['author','comment','published_at','label']))
+        df_display = st.session_state['df_comments'].copy()
+        for col in df_display.columns:
+            if not pd.api.types.is_datetime64_any_dtype(df_display[col]):
+                df_display[col] = df_display[col].astype(str)
+        q = st.text_input('Cari komentar (kata kunci)', value='')
+        if q:
+            df_display = df_display[df_display['comment'].str.contains(q, case=False, na=False)]
 
-if df.empty:
-    st.info('Belum ada data komentar. Silakan ambil data dulu.')
-else:
-    # search
-    q = st.text_input('Cari komentar (kata kunci)', value='')
-    if q:
-        df_display = df[df['comment'].astype(str).str.contains(q, case=False, na=False)]
-    else:
-        df_display = df
+        st.dataframe(df_display[['author','comment','label','published_at']].sort_values(by='published_at', ascending=False))
 
-    # Tampilkan tabel
-    st.dataframe(df_display[['author','comment','label','published_at']].sort_values(by='published_at', ascending=False))
-
-    # Delete row
     index_to_delete = st.number_input('Nomor baris untuk dihapus (index)', min_value=0,
         max_value=len(df_display)-1 if len(df_display)>0 else 0, value=0)
     if st.button('Hapus baris yang dipilih'):
