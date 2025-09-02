@@ -311,6 +311,10 @@ if menu == 'Sentiment':
     .reset_index()
     .rename(columns={'index': 'No'})
 )
+            df_display.index = df_display.index + 1
+            df_display = df_display.rename_axis("No").reset_index()
+
+            st.dataframe(df_display)
 
             # Delete row
             index_to_delete = st.number_input('Nomor baris untuk dihapus (index)', min_value=0, max_value=len(df_display)-1 if len(df_display)>0 else 0, value=0)
