@@ -25,7 +25,7 @@ def load_youtube_client(api_key: str):
 
 
 def extract_video_id(url: str):
-    # naive extractor for links like https://youtu.be/<id>?...
+
     if 'youtu.be/' in url:
         return url.split('youtu.be/')[1].split('?')[0]
     if 'v=' in url:
@@ -65,7 +65,6 @@ def fetch_comments_for_video(youtube, video_id, max_results=200):
         st.warning(f"Gagal mengambil komentar untuk video {video_id}: {e}")
     return comments
 
-
 def analyze_sentiments(df: pd.DataFrame):
     analyzer = SentimentIntensityAnalyzer()
     sentiments = []
@@ -90,7 +89,6 @@ def analyze_sentiments(df: pd.DataFrame):
     s_df = pd.DataFrame(sentiments)
     return pd.concat([df.reset_index(drop=True), s_df], axis=1)
 
-
 def df_to_excel_bytes(df: pd.DataFrame) -> bytes:
     buffer = io.BytesIO()
     # pastikan semua nilai dikonversi ke string agar tidak error
@@ -101,10 +99,8 @@ def df_to_excel_bytes(df: pd.DataFrame) -> bytes:
     buffer.seek(0)
     return buffer.getvalue()
 
-
 def df_to_csv_bytes(df: pd.DataFrame) -> bytes:
     return df.to_csv(index=False).encode('utf-8')
-
 
 def df_to_pdf_bytes(df: pd.DataFrame) -> bytes:
     # Simple PDF generation using reportlab (plain table-ish)
@@ -186,7 +182,6 @@ if not st.session_state['authenticated']:
                     st.error('Username atau password salah')
     st.stop()
 
-# After login
 # Sidebar
 st.sidebar.image(ADMIN_PIC, width=80)
 st.sidebar.markdown("**Administrator**")
@@ -205,7 +200,7 @@ if menu == 'Sentiment':
 
     if submenu == 'Dashboard':
         st.title('Dashboard Sentiment')
-        # Filter controls
+    
         colf1, colf2, colf3 = st.columns([1,1,1])
         with colf3:
             st.markdown('')
@@ -290,14 +285,11 @@ if menu == 'Sentiment':
             except Exception as e:
                 st.warning('Export PDF gagal (reportlab mungkin belum terpasang). PDF disabled.')
         with colu3:
-            st.write('Filter Data')
-            q = st.text_input('Search...')
-            if st.button('Filter Data'):
-                st.info('Gunakan kolom search untuk mencari teks pada komentar')
+            st.button('Filter Data')
 
         df = st.session_state['df_comments']
         if not df.empty:
-            # search
+            
             q = st.text_input('Cari komentar (kata kunci)', value='')
             if q:
                 df_display = df[df['comment'].str.contains(q, case=False, na=False)]
