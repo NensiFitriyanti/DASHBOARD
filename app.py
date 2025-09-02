@@ -91,18 +91,14 @@ def analyze_sentiments(df: pd.DataFrame):
     s_df = pd.DataFrame(sentiments)
     return pd.concat([df.reset_index(drop=True), s_df], axis=1)
 
+
 def df_to_excel_bytes(df: pd.DataFrame) -> bytes:
     output = BytesIO()
-    df_clean = df.copy()
-
-    for col in df_clean.columns:
-        if not pd.api.types.is_datetime64_any_dtype(df_clean[col]):
-            df_clean[col] = df_clean[col].astype(str)
-
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df_clean.to_excel(writer, index=False, sheet_name='Sentimen')
-
+        df.to_excel(writer, index=False, sheet_name='Sentimen')
+        writer.save()
     return output.getvalue()
+
 
 def df_to_csv_bytes(df: pd.DataFrame) -> bytes:
     return df.to_csv(index=False).encode('utf-8')
@@ -185,28 +181,22 @@ if not st.session_state['authenticated']:
             if check_credentials(username, password):
                 st.session_state['authenticated'] = True
 
-                # Ambil komentar pertama kali setelah login
-                if 'comments' not in st.session_state or not st.session_state['comments']:
-                    youtube_url = st.session_state.get('youtube_url', None)
-                    if youtube_url:
-                        video_id = extract_video_id(youtube_url)
-                        if video_id:
-                            api_key = st.secrets.get('YOUTUBE_API_KEY', os.getenv('YOUTUBE_API_KEY'))
-                            if api_key:
-                                youtube = load_youtube_client(api_key)
-                                st.session_state['comments'] = fetch_comments_for_video(youtube, video_id)
-                            else:
-                                st.session_state['comments'] = []
-                        else:
-                            st.session_state['comments'] = []
-                    else:
-                        st.session_state['comments'] = []
-
-                st.rerun()
+            if 'comments' not in st.session_state or not st.session_state['comments']:
+              youtube_url = st.session_state.get('youtube_url', None)
+            if youtube_url:
+                video_id = extract_video_id(youtube_url)
+                if video_id:
+                    st.session_state['comments'] = get_youtube_comments(video_id)
+                else:
+                    st.session_state['comments'] = []
             else:
-                st.error('Username atau password salah')
-
-    st.stop()
+                st.session_state['comments'] = []
+                
+                st.rerun() 
+        else:
+            st.error('Username atau password salah')
+            
+    st.stop() 
 
 # After login
 # Sidebar
@@ -301,14 +291,10 @@ if menu == 'Sentiment':
                         all_comments.extend(c)
                     if all_comments:
                         df_new = pd.DataFrame(all_comments)
-                        df_new['published_at'] = pd.to_datetime(df_new['published_at'], errors='coerce')
-                        df_new['comment'] = df_new['comment'].fillna('').astype(str)
-                        df_new['author'] = df_new['author'].fillna('').astype(str)
-
+                        df_new['published_at'] = pd.to_datetime(df_new['published_at'])
                         df_new = analyze_sentiments(df_new)
                         st.session_state['df_comments'] = df_new
                         st.success(f'Berhasil mengambil {len(df_new)} komentar')
-
         with colu2:
             st.download_button('Export CSV', data=df_to_csv_bytes(st.session_state['df_comments']), file_name='sentimen.csv')
             st.download_button('Export Excel', data=df_to_excel_bytes(st.session_state['df_comments']), file_name='sentimen.xlsx')
@@ -322,97 +308,35 @@ if menu == 'Sentiment':
             if st.button('Filter Data'):
                 st.info('Gunakan kolom search untuk mencari teks pada komentar')
 
-        df_display = st.session_state['df_comments'].copy()
-        for col in df_display.columns:
-            if not pd.api.types.is_datetime64_any_dtype(df_display[col]):
-                df_display[col] = df_display[col].astype(str)
-        q = st.text_input('Cari komentar (kata kunci)', value='')
-        if q:
-            df_display = df_display[df_display['comment'].str.contains(q, case=False, na=False)]
+        df = st.session_state['df_comments']
+        if not df.empty:
+            # search
+            q = st.text_input('Cari komentar (kata kunci)', value='')
+            if q:
+                df_display = df[df['comment'].str.contains(q, case=False, na=False)]
+            else:
+                df_display = df
 
-        st.dataframe(df_display[['author','comment','label','published_at']].sort_values(by='published_at', ascending=False))
+            st.dataframe(df_display[['author','comment','label','published_at']].sort_values(by='published_at', ascending=False))
 
-    index_to_delete = st.number_input('Nomor baris untuk dihapus (index)', min_value=0,
-        max_value=len(df_display)-1 if len(df_display)>0 else 0, value=0)
-    if st.button('Hapus baris yang dipilih'):
-        try:
-            actual_index = df_display.index[index_to_delete]
-            df = df.drop(actual_index)
-            st.session_state['df_comments'] = df.reset_index(drop=True)
-            st.success('Baris dihapus')
-        except Exception as e:
-            st.error('Gagal menghapus: ' + str(e))
-
+            # Delete row
+            index_to_delete = st.number_input('Nomor baris untuk dihapus (index)', min_value=0, max_value=len(df_display)-1 if len(df_display)>0 else 0, value=0)
+            if st.button('Hapus baris yang dipilih'):
+                # map displayed index to actual index
+                try:
+                    actual_index = df_display.index[index_to_delete]
+                    df = df.drop(actual_index)
+                    st.session_state['df_comments'] = df.reset_index(drop=True)
+                    st.success('Baris dihapus')
+                except Exception as e:
+                    st.error('Gagal menghapus: ' + str(e))
         else:
             st.info('Belum ada data. Silakan ambil data menggunakan tombol "Ambil data lagi dari daftar video" di atas.')
 
     if submenu == 'Insight & Rekomendasi':
-
-     if submenu == 'Insight & Rekomendasi':
-         st.title('Insight & Rekomendasi')
-
-    df = st.session_state['df_comments']
-    if df.empty or 'label' not in df.columns:
-        st.info("Belum ada data komentar. Silakan ambil data dulu.")
-    else:
-        total = len(df)
-        pos_count = (df['label'] == 'Positif').sum()
-        neu_count = (df['label'] == 'Netral').sum()
-        neg_count = (df['label'] == 'Negatif').sum()
-
-        # Persentase
-        pos_pct = (pos_count / total * 100) if total > 0 else 0
-        neu_pct = (neu_count / total * 100) if total > 0 else 0
-        neg_pct = (neg_count / total * 100) if total > 0 else 0
-
-        # Fungsi kotak + wordcloud
-        def make_box_with_wc(title, count, pct, color, insight, rekomendasi, text_series):
-            st.markdown(
-                f"""
-                <div style="background:{color};padding:20px;border-radius:10px;color:white;margin-bottom:15px">
-                <h3>{title}</h3>
-                <p>Total: <b>{count}</b> komentar ({pct:.1f}%)</p>
-                <p>📊 Insight: {insight}</p>
-                <p>💡 Rekomendasi:<br>{rekomendasi}</p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-            # WordCloud
-            if count > 0:
-                wc_text = " ".join(text_series.dropna().astype(str))
-                wc = WordCloud(width=600, height=300, background_color="white").generate(wc_text)
-                fig, ax = plt.subplots(figsize=(6,3))
-                ax.imshow(wc, interpolation='bilinear')
-                ax.axis("off")
-                st.pyplot(fig)
-
-        # Logika insight & rekomendasi
-        if pos_pct > 40:
-            pos_insight = "Mayoritas komentar positif 🎉. Konten disukai audiens."
-            pos_rekomen = "Tingkatkan interaksi (balas komentar, adakan Q&A). Gunakan pola positif untuk konten berikutnya."
-        else:
-            pos_insight = "Komentar positif ada, tapi belum dominan."
-            pos_rekomen = "Coba perkuat bagian yang audiens sukai, perhatikan topik yang sering muncul."
-
-        if neu_pct > 50:
-            neu_insight = "Mayoritas komentar netral. Audiens cenderung pasif."
-            neu_rekomen = "Ajak penonton lebih aktif dengan pertanyaan/quiz. Dorong mereka memberi feedback."
-        else:
-            neu_insight = "Komentar netral cukup berimbang."
-            neu_rekomen = "Tetap jaga interaksi agar audiens tidak hanya pasif."
-
-        if neg_pct > 20:
-            neg_insight = "Komentar negatif cukup signifikan ⚠️."
-            neg_rekomen = "Evaluasi kualitas video & penyampaian. Perbaiki sesuai kritik audiens."
-        else:
-            neg_insight = "Komentar negatif rendah 👍."
-            neg_rekomen = "Tetap monitor agar tidak meningkat, tanggapi kritik dengan bijak."
-
-        # Tampilkan 3 kotak + wordcloud
-        make_box_with_wc("Sentimen Positif", pos_count, pos_pct, "#2ecc71",
-                         pos_insight, pos_rekomen, df[df['label']=="Positif"]['comment'])
-        make_box_with_wc("Sentimen Netral", neu_count, neu_pct, "#95a5a6",
-                         neu_insight, neu_rekomen, df[df['label']=="Netral"]['comment'])
-        make_box_with_wc("Sentimen Negatif", neg_count, neg_pct, "#e74c3c",
-                         neg_insight, neg_rekomen, df[df['label']=="Negatif"]['comment'])
+        st.title('Insight & Rekomendasi')
+        st.markdown('### Insight')
+        st.info('Di sini akan ditampilkan insight hasil analisis sentimen terkait layanan SAMSAT. Contoh insight: trend negatif meningkat pada bulan X, topik komplain: lama proses, biaya, dll.')
+        st.markdown('### Rekomendasi')
+        st.success('Di sini akan ditampilkan rekomendasi operasional berdasarkan insight. Contoh rekomendasi: tambahkan layanan antrian online, perbaiki informasi biaya pada website, training CS, dll.')
+        st.write('Anda bisa mengedit teks rekomendasi ini sesuai kebutuhan instansi.')
