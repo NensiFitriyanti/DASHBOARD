@@ -91,15 +91,18 @@ def analyze_sentiments(df: pd.DataFrame):
     s_df = pd.DataFrame(sentiments)
     return pd.concat([df.reset_index(drop=True), s_df], axis=1)
 
+
 def df_to_excel_bytes(df: pd.DataFrame) -> bytes:
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Sentimen')
-    output.seek(0)
+        writer.save()
     return output.getvalue()
+
 
 def df_to_csv_bytes(df: pd.DataFrame) -> bytes:
     return df.to_csv(index=False).encode('utf-8')
+
 
 def df_to_pdf_bytes(df: pd.DataFrame) -> bytes:
     # Simple PDF generation using reportlab (plain table-ish)
@@ -178,6 +181,7 @@ if not st.session_state['authenticated']:
             if check_credentials(username, password):
                 st.session_state['authenticated'] = True
 
+                # Ambil komentar pertama kali setelah login
                 if 'comments' not in st.session_state or not st.session_state['comments']:
                     youtube_url = st.session_state.get('youtube_url', None)
                     if youtube_url:
@@ -249,60 +253,27 @@ if menu == 'Sentiment':
             with c3:
                 st.markdown(f"<div style='background:#e74c3c;padding:20px;border-radius:6px;color:white;text-align:center'><h3>\U0001F61E<br>Sentimen Negatif</h3><h2>{neg_count}</h2></div>", unsafe_allow_html=True)
 
-# Bagi tampilan
-col1, col2 = st.columns(2)
+            # Statistik per hari
+            st.markdown('### Statistik Total Data Sentimen')
+            stat_df = filtered.copy()
+            stat_df['date'] = stat_df['published_at'].dt.date
+            by_date = stat_df.groupby('date').size().reset_index(name='count')
+            fig, ax = plt.subplots()
+            ax.plot(by_date['date'], by_date['count'], marker='o')
+            ax.set_xlabel('Tanggal')
+            ax.set_ylabel('Jumlah Komentar')
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
 
-# Box Statistik Total
-with col1:
-    if not filtered.empty:
-        st.markdown(
-            """
-            <div style="background-color:#f5f5f5; border:1px solid #ddd;
-                        padding:15px; border-radius:10px;
-                        box-shadow:2px 2px 6px rgba(0,0,0,0.1);">
-            <h4>Statistik Total Data Sentimen</h4>
-            """,
-            unsafe_allow_html=True
-        )
-
-        stat_df = filtered.copy()
-        stat_df['date'] = stat_df['published_at'].dt.date
-        by_date = stat_df.groupby('date').size().reset_index(name='count')
-
-        fig, ax = plt.subplots()
-        ax.plot(by_date['date'], by_date['count'], marker='o')
-        ax.set_xlabel('Tanggal')
-        ax.set_ylabel('Jumlah Komentar')
-        plt.xticks(rotation=45)
-        st.pyplot(fig)
-
-        st.markdown("</div>", unsafe_allow_html=True)
-    else:
-        st.info('Belum ada data komentar. Silakan ambil data melalui menu Kelola Data.')
-
-# Box Pie Chart
-with col2:
-    if not filtered.empty:
-        st.markdown(
-            """
-            <div style="background-color:#f5f5f5; border:1px solid #ddd;
-                        padding:15px; border-radius:10px;
-                        box-shadow:2px 2px 6px rgba(0,0,0,0.1);">
-            <h4>Persentase Sentimen</h4>
-            """,
-            unsafe_allow_html=True
-        )
-
-        pie_df = pd.Series([pos_count, neu_count, neg_count],
-                           index=['Positif','Netral','Negatif'])
-        fig2, ax2 = plt.subplots()
-        pie_df.plot.pie(autopct='%1.1f%%', ax=ax2)
-        ax2.set_ylabel('')
-        st.pyplot(fig2)
-
-        st.markdown("</div>", unsafe_allow_html=True)
-    else:
-        st.info('Belum ada data komentar. Silakan ambil data melalui menu Kelola Data.')
+            # Pie chart
+            st.markdown('### Persentase Sentimen')
+            pie_df = pd.Series([pos_count, neu_count, neg_count], index=['Positif','Netral','Negatif'])
+            fig2, ax2 = plt.subplots()
+            pie_df.plot.pie(y='count', autopct='%1.1f%%', ax=ax2)
+            ax2.set_ylabel('')
+            st.pyplot(fig2)
+        else:
+            st.info('Belum ada data komentar. Silakan ambil data melalui menu Kelola Data.')
 
     if submenu == 'Kelola Data':
         st.title('Halaman Kelola Sentimen')
@@ -368,7 +339,8 @@ with col2:
         else:
             st.info('Belum ada data. Silakan ambil data menggunakan tombol "Ambil data lagi dari daftar video" di atas.')
 
-    from wordcloud import WordCloud
+    if submenu == 'Insight & Rekomendasi':
+     from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 
 if submenu == 'Insight & Rekomendasi':
