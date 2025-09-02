@@ -94,11 +94,18 @@ def analyze_sentiments(df: pd.DataFrame):
 
 def df_to_excel_bytes(df: pd.DataFrame) -> bytes:
     output = BytesIO()
+    
+    df_clean = df.copy()
+    
+    for col in df_clean.columns:
+       
+        if df_clean[col].dtype == 'O':
+           
+            if not pd.api.types.is_datetime64_any_dtype(df_clean[col]):
+                df_clean[col] = df_clean[col].apply(lambda x: str(x) if x is not None else "")
 
-    # Konversi semua nilai yang bukan tipe dasar menjadi string
-    df_clean = df.copy().applymap(
-        lambda x: x if isinstance(x, (str, int, float, bool, type(None), pd.Timestamp)) else str(x)
-    )
+        if pd.api.types.is_datetime64_any_dtype(df_clean[col]):
+            df_clean[col] = pd.to_datetime(df_clean[col], errors='coerce')
 
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df_clean.to_excel(writer, index=False, sheet_name='Sentimen')
@@ -337,7 +344,7 @@ else:
 
     # Delete row
     index_to_delete = st.number_input('Nomor baris untuk dihapus (index)', min_value=0,
-                                      max_value=len(df_display)-1 if len(df_display)>0 else 0, value=0)
+        max_value=len(df_display)-1 if len(df_display)>0 else 0, value=0)
     if st.button('Hapus baris yang dipilih'):
         try:
             actual_index = df_display.index[index_to_delete]
@@ -351,11 +358,9 @@ else:
             st.info('Belum ada data. Silakan ambil data menggunakan tombol "Ambil data lagi dari daftar video" di atas.')
 
     if submenu == 'Insight & Rekomendasi':
-     from wordcloud import WordCloud
-import matplotlib.pyplot as plt
 
-if submenu == 'Insight & Rekomendasi':
-    st.title('Insight & Rekomendasi')
+     if submenu == 'Insight & Rekomendasi':
+         st.title('Insight & Rekomendasi')
 
     df = st.session_state['df_comments']
     if df.empty or 'label' not in df.columns:
